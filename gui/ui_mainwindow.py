@@ -5,6 +5,7 @@
 # Created by: PyQt5 UI code generator 5.12
 #
 # WARNING! All changes made in this file will be lost!
+from json import JSONDecodeError
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtWidgets import QFileDialog, QMessageBox
@@ -17,6 +18,7 @@ sys.path.append(os.path.abspath(os.path.join(THIS_DIR, '..')))
 from core import TowerDataBase, main_run, find_available_tower
 import wind_cmp
 from ui_widget import *
+import json
 
 IMG_PATH = os.path.abspath(os.path.join(THIS_DIR, './res/img/'))
 
@@ -36,7 +38,7 @@ class Ui_MainWindow(object):
         sizePolicy.setHeightForWidth(MainWindow.sizePolicy().hasHeightForWidth())
         MainWindow.setSizePolicy(sizePolicy)
         icon = QtGui.QIcon()
-        icon.addPixmap(QtGui.QPixmap(os.path.join(IMG_PATH, "./排名.png")), QtGui.QIcon.Normal, QtGui.QIcon.Off)
+        icon.addPixmap(QtGui.QPixmap(os.path.join(IMG_PATH, "./sort_ico.png")), QtGui.QIcon.Normal, QtGui.QIcon.Off)
         MainWindow.setWindowIcon(icon)
         self.centralWidget = QtWidgets.QWidget(MainWindow)
         self.centralWidget.setObjectName("centralWidget")
@@ -339,7 +341,7 @@ class Ui_MainWindow(object):
         font.setWeight(50)
         self.pushButton_towerrec.setFont(font)
         icon1 = QtGui.QIcon()
-        icon1.addPixmap(QtGui.QPixmap(os.path.join(IMG_PATH, "./推荐.png")), QtGui.QIcon.Normal, QtGui.QIcon.Off)
+        icon1.addPixmap(QtGui.QPixmap(os.path.join(IMG_PATH, "./reco_btn.png")), QtGui.QIcon.Normal, QtGui.QIcon.Off)
         self.pushButton_towerrec.setIcon(icon1)
         self.pushButton_towerrec.setIconSize(QtCore.QSize(20, 20))
         self.pushButton_towerrec.setObjectName("pushButton_towerrec")
@@ -356,7 +358,7 @@ class Ui_MainWindow(object):
         font.setPointSize(9)
         self.pushButton_export.setFont(font)
         icon2 = QtGui.QIcon()
-        icon2.addPixmap(QtGui.QPixmap(os.path.join(IMG_PATH, "./导出excel.png")), QtGui.QIcon.Normal, QtGui.QIcon.Off)
+        icon2.addPixmap(QtGui.QPixmap(os.path.join(IMG_PATH, "./export_btn.png")), QtGui.QIcon.Normal, QtGui.QIcon.Off)
         self.pushButton_export.setIcon(icon2)
         self.pushButton_export.setIconSize(QtCore.QSize(20, 20))
         self.pushButton_export.setObjectName("pushButton_export")
@@ -375,7 +377,7 @@ class Ui_MainWindow(object):
         font.setWeight(50)
         self.pushButton_sort.setFont(font)
         icon3 = QtGui.QIcon()
-        icon3.addPixmap(QtGui.QPixmap(os.path.join(IMG_PATH, "./排序.png")), QtGui.QIcon.Normal, QtGui.QIcon.Off)
+        icon3.addPixmap(QtGui.QPixmap(os.path.join(IMG_PATH, "./sort_btn.png")), QtGui.QIcon.Normal, QtGui.QIcon.Off)
         self.pushButton_sort.setIcon(icon3)
         self.pushButton_sort.setIconSize(QtCore.QSize(20, 20))
         self.pushButton_sort.setObjectName("pushButton_sort")
@@ -460,6 +462,8 @@ class Ui_MainWindow(object):
         self.menuBar.setObjectName("menuBar")
         self.menu_file = QtWidgets.QMenu(self.menuBar)
         self.menu_file.setObjectName("menu_file")
+        self.menu_database = QtWidgets.QMenu(self.menuBar)
+        self.menu_database.setObjectName("menu_database")
         self.menu_tools = QtWidgets.QMenu(self.menuBar)
         self.menu_tools.setObjectName("menu_tools")
         self.menu_help = QtWidgets.QMenu(self.menuBar)
@@ -467,27 +471,39 @@ class Ui_MainWindow(object):
         MainWindow.setMenuBar(self.menuBar)
         self.action_openfile = QtWidgets.QAction(MainWindow)
         icon4 = QtGui.QIcon()
-        icon4.addPixmap(QtGui.QPixmap(os.path.join(IMG_PATH, "./打开文件 (1).png")), QtGui.QIcon.Normal, QtGui.QIcon.Off)
+        icon4.addPixmap(QtGui.QPixmap(os.path.join(IMG_PATH, "./open_act.png")), QtGui.QIcon.Normal, QtGui.QIcon.Off)
         self.action_openfile.setIcon(icon4)
         self.action_openfile.setObjectName("action_openfile")
         self.action_deletefile = QtWidgets.QAction(MainWindow)
         icon5 = QtGui.QIcon()
-        icon5.addPixmap(QtGui.QPixmap(os.path.join(IMG_PATH, "./清除.png")), QtGui.QIcon.Normal, QtGui.QIcon.Off)
+        icon5.addPixmap(QtGui.QPixmap(os.path.join(IMG_PATH, "./clear_act.png")), QtGui.QIcon.Normal, QtGui.QIcon.Off)
         self.action_deletefile.setIcon(icon5)
         self.action_deletefile.setObjectName("action_deletefile")
         self.action_exit = QtWidgets.QAction(MainWindow)
         icon6 = QtGui.QIcon()
-        icon6.addPixmap(QtGui.QPixmap(os.path.join(IMG_PATH, "./退出.png")), QtGui.QIcon.Normal, QtGui.QIcon.Off)
+        icon6.addPixmap(QtGui.QPixmap(os.path.join(IMG_PATH, "./exit_act.png")), QtGui.QIcon.Normal, QtGui.QIcon.Off)
         self.action_exit.setIcon(icon6)
         self.action_exit.setObjectName("action_exit")
+        self.action_db_connect = QtWidgets.QAction(MainWindow)
+        icon_connect = QtGui.QIcon()
+        icon_connect.addPixmap(QtGui.QPixmap(os.path.join(IMG_PATH, "./connect_act.png")), QtGui.QIcon.Normal,
+                               QtGui.QIcon.Off)
+        self.action_db_connect.setIcon(icon_connect)
+        self.action_db_connect.setObjectName("action_db_connect")
+        self.action_db_config = QtWidgets.QAction(MainWindow)
+        icon_config = QtGui.QIcon()
+        icon_config.addPixmap(QtGui.QPixmap(os.path.join(IMG_PATH, "./config_act.png")), QtGui.QIcon.Normal,
+                              QtGui.QIcon.Off)
+        self.action_db_config.setIcon(icon_config)
+        self.action_db_config.setObjectName("action_db_config")
         self.action_sort = QtWidgets.QAction(MainWindow)
         icon7 = QtGui.QIcon()
-        icon7.addPixmap(QtGui.QPixmap(os.path.join(IMG_PATH, "./排序_灰.png")), QtGui.QIcon.Normal, QtGui.QIcon.Off)
+        icon7.addPixmap(QtGui.QPixmap(os.path.join(IMG_PATH, "./sort_act.png")), QtGui.QIcon.Normal, QtGui.QIcon.Off)
         self.action_sort.setIcon(icon7)
         self.action_sort.setObjectName("action_sort")
         self.action_towerrec = QtWidgets.QAction(MainWindow)
         icon8 = QtGui.QIcon()
-        icon8.addPixmap(QtGui.QPixmap(os.path.join(IMG_PATH, "./推荐_灰.png")), QtGui.QIcon.Normal, QtGui.QIcon.Off)
+        icon8.addPixmap(QtGui.QPixmap(os.path.join(IMG_PATH, "./reco_act.png")), QtGui.QIcon.Normal, QtGui.QIcon.Off)
         self.action_towerrec.setIcon(icon8)
         self.action_towerrec.setObjectName("action_towerrec")
         self.action_contact = QtWidgets.QAction(MainWindow)
@@ -496,18 +512,21 @@ class Ui_MainWindow(object):
         self.action_abort.setObjectName("action_abort")
         self.action_export = QtWidgets.QAction(MainWindow)
         icon9 = QtGui.QIcon()
-        icon9.addPixmap(QtGui.QPixmap(os.path.join(IMG_PATH, "./导出excel_灰.png")), QtGui.QIcon.Normal, QtGui.QIcon.Off)
+        icon9.addPixmap(QtGui.QPixmap(os.path.join(IMG_PATH, "./export_act.png")), QtGui.QIcon.Normal, QtGui.QIcon.Off)
         self.action_export.setIcon(icon9)
         self.action_export.setObjectName("action_export")
         self.menu_file.addAction(self.action_openfile)
         self.menu_file.addAction(self.action_deletefile)
         self.menu_file.addAction(self.action_exit)
+        self.menu_database.addAction(self.action_db_connect)
+        self.menu_database.addAction(self.action_db_config)
         self.menu_tools.addAction(self.action_sort)
         self.menu_tools.addAction(self.action_towerrec)
         self.menu_tools.addAction(self.action_export)
         self.menu_help.addAction(self.action_contact)
         self.menu_help.addAction(self.action_abort)
         self.menuBar.addAction(self.menu_file.menuAction())
+        self.menuBar.addAction(self.menu_database.menuAction())
         self.menuBar.addAction(self.menu_tools.menuAction())
         self.menuBar.addAction(self.menu_help.menuAction())
 
@@ -576,11 +595,14 @@ class Ui_MainWindow(object):
         self.tabWidget_result.setTabText(self.tabWidget_result.indexOf(self.tab_m10), _translate("MainWindow", "M=10"))
         self.tabWidget_result.setTabText(self.tabWidget_result.indexOf(self.tab_etm), _translate("MainWindow", "ETM"))
         self.menu_file.setTitle(_translate("MainWindow", "文件(&F)"))
+        self.menu_database.setTitle(_translate("MainWindow", "数据库(&D)"))
         self.menu_tools.setTitle(_translate("MainWindow", "工具(&T)"))
         self.menu_help.setTitle(_translate("MainWindow", "帮助(&H)"))
         self.action_openfile.setText(_translate("MainWindow", "打开风参文件(&O)"))
         self.action_deletefile.setText(_translate("MainWindow", "清除文件(&C)"))
         self.action_exit.setText(_translate("MainWindow", "退出(&E)"))
+        self.action_db_connect.setText(_translate("MainWindow", "连接"))
+        self.action_db_config.setText(_translate("MainWindow", "配置..."))
         self.action_sort.setText(_translate("MainWindow", "风参排序(&S)"))
         self.action_towerrec.setText(_translate("MainWindow", "推选塔架(&R)"))
         self.action_contact.setText(_translate("MainWindow", "获得帮助"))
@@ -624,6 +646,10 @@ class Ui_MainWindow(object):
         self.pushButton_ref_std.clicked.connect(self.on_pushButton_ref_std_clicked)
         self.pushButton_ref_cz.clicked.connect(self.on_pushButton_ref_cz_clicked)
         self.action_exit.triggered.connect(QtCore.QCoreApplication.instance().quit)
+
+        # 数据库操作
+        self.action_db_connect.triggered.connect(self.on_action_db_connect_triggered)
+        self.action_db_config.triggered.connect(self.on_action_db_config_triggered)
 
         # 重置下拉框
         self.pushButton_reset.clicked.connect(self.on_pushButton_reset_clicked)
@@ -670,6 +696,31 @@ class Ui_MainWindow(object):
     def abort(self):
         abort_dialog = AbortDialog()
         abort_dialog.exec()
+
+    @staticmethod
+    def mysql_connect(**kwargs):
+        pass
+
+    def on_action_db_connect_triggered(self):
+        config = {}
+        try:
+            with open('./config/config.json', 'r', encoding='utf-8') as f:
+                config = json.load(f)
+        except:
+            self.statusBar.showMessage('数据库配置信息读取失败！')
+
+        if not config:
+            msg = QMessageBox()
+            msg.setWindowTitle("警告")
+            msg.setIcon(QMessageBox.Warning)
+            msg.setText("数据库无法连接，请重新配置！")
+            msg.exec()
+        else:
+            self.mysql_connect(**config)
+
+    def on_action_db_config_triggered(self):
+        config_dialog = DBConfigDialog(self.mysql_connect)
+        config_dialog.exec()
 
     def on_groupBox_ref_path_changChecked(self):
         self.groupBox_turbine_lib.setChecked(not self.groupBox_ref_path.isChecked())
@@ -1140,6 +1191,87 @@ class Ui_MainWindow(object):
                 excel.write(filename)
 
 
+class DBConfigDialog(QtWidgets.QDialog):
+    def __init__(self, func_mysql_connect):
+        super().__init__()
+
+        self.func_mysql_connect = func_mysql_connect
+        self.ui_show()
+
+    def ui_show(self):
+        self.setWindowFlags(QtCore.Qt.WindowCloseButtonHint | QtCore.Qt.WindowMinimizeButtonHint)
+        self.setWindowTitle('数据库配置')
+        window_icon = QtGui.QIcon()
+        window_icon.addPixmap(QtGui.QPixmap(os.path.join(IMG_PATH, "./config_act.png")), QtGui.QIcon.Normal,
+                              QtGui.QIcon.Off)
+        self.setWindowIcon(window_icon)
+        self.setFixedHeight(220)
+        self.setMaximumWidth(400)
+
+        layout = QtWidgets.QVBoxLayout(self)
+        self.grid_layout = QtWidgets.QGridLayout()
+        labels = ['数据库名称:', '', '主机:', '端口:', '用户:', '密码:']
+        try:
+            with open('./config/config.json', 'r', encoding='utf-8') as f:
+                config = json.load(f)
+        except (FileNotFoundError, JSONDecodeError) as e:
+            config = {}
+        if config:
+            auto_filling = config
+            auto_filling[''] = ''
+        else:
+            auto_filling = {'数据库名称:': '', '': '', '主机:': '', '端口:': '3306', '用户:': '', '密码:': ''}
+        for i, label in enumerate(labels):
+            lbl = QtWidgets.QLabel(label)
+            self.grid_layout.addWidget(lbl, i, 0)
+            if label:
+                line_edit = QtWidgets.QLineEdit(auto_filling[label])
+                if label == '密码:':
+                    line_edit.setEchoMode(QtWidgets.QLineEdit.Password)
+                self.grid_layout.addWidget(line_edit, i, 1)
+            else:
+                self.grid_layout.addWidget(lbl, i, 1)
+        #
+        group = QtWidgets.QGroupBox()
+        group.resize(270, 355)
+        group.setStyleSheet('background: white')
+        group.setLayout(self.grid_layout)
+
+        hbox_layout = QtWidgets.QHBoxLayout(self)
+        self.set_default_check = QtWidgets.QCheckBox('设为默认', self)
+        self.set_default_check.move(15, 360)
+        connect_btn = QtWidgets.QPushButton('连接', self)
+        connect_btn.move(100, 360)
+        cancel_btn = QtWidgets.QPushButton('取消', self)
+        cancel_btn.move(200, 360)
+
+        connect_btn.clicked.connect(self.on_connect_btn_clicked)
+        cancel_btn.clicked.connect(self.close)
+
+        spacer1 = QtWidgets.QSpacerItem(80, 20)
+        hbox_layout.addWidget(self.set_default_check)
+        hbox_layout.addSpacerItem(spacer1)
+        hbox_layout.addWidget(connect_btn)
+        hbox_layout.addWidget(cancel_btn)
+
+        layout.addWidget(group)
+        layout.addLayout(hbox_layout)
+        self.setLayout(layout)
+
+        self.show()
+
+    def on_connect_btn_clicked(self):
+        config = {'数据库名称:': self.grid_layout.itemAtPosition(0, 1).widget().text(),
+                  '主机:': self.grid_layout.itemAtPosition(2, 1).widget().text(),
+                  '端口:': self.grid_layout.itemAtPosition(3, 1).widget().text(),
+                  '用户:': self.grid_layout.itemAtPosition(4, 1).widget().text(),
+                  '密码:': self.grid_layout.itemAtPosition(5, 1).widget().text()}
+        self.func_mysql_connect(**config)
+        if self.set_default_check.isChecked():
+            with open('./config/config.json', 'w', encoding='UTF-8') as f:
+                json.dump(config, f)
+        self.close()
+
 class ContactDialog(QtWidgets.QDialog):
     def __init__(self):
         super().__init__()
@@ -1237,3 +1369,4 @@ class AbortDialog(QtWidgets.QDialog):
         self.setLayout(layout)
 
         self.show()
+

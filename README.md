@@ -1,1 +1,1 @@
-### 利用PyInstaller打包：###- 启动时没有控制台：```pyinstaller -w -n=WindOrder -i=windorder.ico gui/main.py```- 启动时有控制台(方便调试)：```pyinstaller -w -n=WindOrder -i=windorder.ico gui/main.py```
+### 利用PyInstaller打包- 启动时没有控制台：```pyinstaller -w -n=WindOrder -i=windorder.ico gui/main.py```- 启动时有控制台(方便调试)：```pyinstaller -n=WindOrder -i=windorder.ico gui/main.py```

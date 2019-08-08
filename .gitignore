@@ -1,8 +1,11 @@
 .vscode/
 .git/
+.idea/
 build/
 dist/
 *.pyc
 files/
 WindOrder.ico
 WindOrder.spec
+Pipfile
+Pipfile.lock
