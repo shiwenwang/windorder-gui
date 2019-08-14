@@ -130,6 +130,7 @@ class TowerDataBase(object):
     @staticmethod
     def alignment(windspeed, data, ti_item):
         ti = data[ti_item]
+
         if len(ti) > len(windspeed):
             ti = ti[:len(windspeed)]
         elif len(ti) < len(windspeed):

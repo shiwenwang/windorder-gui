@@ -14,34 +14,34 @@ from functools import partial
 
 
 class TiInterp(Base):
-
+        
     def run(self):
         """
 
         :return ti: turbulence intensity
         """
         ti_cluster = {}
+        self.v_end = {}
 
         for k, wind in self._inputs.items():
-
             wind_condition = wind['condition']
             ti_m1 = wind['m1']
             ti_m10 = wind['m10']
             ti_etm = wind['etm']
 
-            rated_wind_speed = self.calc_rated_wind_speed(wind_condition)  # dict
-
             if k == 'farm':
-                turbine_sites = wind['label']  # label: sites
+                turbine_sites = wind['site_label']  # label: sites
             else:
                 turbine_sites = [k]  # label: tower_id
+                
+            rated_wind_speed = self.calc_rated_wind_speed(wind_condition)  # dict
 
             min_windspeed = ti_m1['Wind Speed'].values[0]
             wind_cut_in = 2.5 if min_windspeed < 3 else 3
-            wind_cut_out = int(ti_etm['Wind Speed'].iloc[-1])
-
+            wind_cut_out = int(ti_etm.at[len(ti_etm.index) - 1, 'Wind Speed'])  # at 比iloc速度更快
+            
             f_wind_end = partial(self.calc_wind_end, wind_condition, wind_cut_out)
-            sequence = np.append(np.arange(3, 20, 2), 20)
+            sequence = np.append(np.arange(3, 20, 2), 20)  # [3, 5, 7, 9, 11, 13, 15, 17, 19, 20]
             etm_index = ['ETM' + str(d) for d in sequence]
             m10_index = [''.join(['I', str(d), '_m10']) for d in sequence]
 
@@ -53,7 +53,7 @@ class TiInterp(Base):
 
             ti_cluster.update(ti)
 
-        self._outputs = {'ti': ti_cluster, 'cut_in': wind_cut_in, 'cut_out': wind_cut_out}
+        self._outputs = {'ti': ti_cluster, 'v_end': self.v_end}
 
     @staticmethod
     def calc_rated_wind_speed(wind_condition):
@@ -65,25 +65,30 @@ class TiInterp(Base):
 
         return rated_wind_speed
 
-    def interpolation(self, turbine_sites, rated_wind_speed, wind_cut_in, wind_cut_out, ti_m1, ti_m10, ti_etm,
-                      ul_index, fl_index, f_wind_end):
+    def interpolation(self, turbine_sites, rated_wind_speed, wind_cut_in, wind_cut_out,
+                        ti_m1, ti_m10, ti_etm, ul_index, fl_index, f_wind_end):
         ti = {}
-        sequence = np.append(np.arange(3, 20, 2), 20)
+        sequence = np.append(np.arange(3, 20, 2), 20) 
         for turbine_id in turbine_sites:
-            wind_end = f_wind_end(turbine_id)
+            # m1、m10、etm 补短
+            if wind_cut_out < 20:
+                self.ti_fill_shortage(ti_m1)
+                self.ti_fill_shortage(ti_m10)
+                self.ti_fill_shortage(ti_etm)
 
             # 3-20，湍流插值
-            ti_ul = self.ti_seq(ti_etm, turbine_id, sequence)
-            ti_fl = self.ti_seq(ti_m10, turbine_id, sequence)
+            ti_ul = self.ti_seq(ti_etm, turbine_id, sequence, '3-20')
+            ti_fl = self.ti_seq(ti_m10, turbine_id, sequence, '3-20')
 
             # 特殊点插值
             m1_ext_seq = np.array([rated_wind_speed[turbine_id] - 2, rated_wind_speed[turbine_id],
                                    rated_wind_speed[turbine_id] + 2, wind_cut_out])
             m10_ext_seq = np.array([wind_cut_in, rated_wind_speed[turbine_id], wind_cut_out])
 
-            ti_ul = np.append(ti_ul, self.ti_seq(ti_m1, turbine_id, m1_ext_seq))
-            ti_fl = np.append(ti_fl, self.ti_seq(ti_m10, turbine_id, m10_ext_seq))
-            ti_fl = np.append(ti_fl, self.calc_ti_end(ti_fl, wind_end))
+            ti_ul = np.append(ti_ul, self.ti_seq(ti_m1, turbine_id, m1_ext_seq, 'ext'))
+            ti_fl = np.append(ti_fl, self.ti_seq(ti_m10, turbine_id, m10_ext_seq, 'ext'))        
+            self.v_end[turbine_id] = f_wind_end(turbine_id)
+            ti_fl = np.append(ti_fl, self.calc_ti_end(ti_fl, self.v_end[turbine_id]))          
 
             ti_ul_ser = pd.Series(ti_ul, index=ul_index)
             ti_fl_ser = pd.Series(ti_fl, index=fl_index)
@@ -92,25 +97,41 @@ class TiInterp(Base):
 
         return ti
 
-    def ti_seq(self, ti, turbine_id, sequence):
+    @staticmethod
+    def ti_fill_shortage(ti):
+        """
+        最大风速小于20的，将湍流数据延伸到20
+        """
+        ti_tail = ti[-1:]
+        ti_tail.at[len(ti) - 1, 'Wind Speed'] = 20
+        ti_tail.index = [len(ti)]
+        ti = pd.concat([ti, ti_tail])        
+
+    def ti_seq(self, ti, turbine_id, sequence, scope):
         try:
             interpolator = interp1d(ti['Wind Speed'].values, ti[turbine_id].values, kind='linear')
-        except ValueError as e:
+        except (ValueError, KeyError) as e:
+            # 有非数字存在
             interpolator = interp1d(self.fix_data(ti['Wind Speed'].values),
                                     self.fix_data(ti[turbine_id].values), kind='linear')
             print(f"[INFO]: {turbine_id}, 湍流格式有误！{e}")
 
-        max_wind_speed = np.max(ti['Wind Speed'].values)
-        inner_sequence = [d for d in sequence if d <= max_wind_speed]
-        outer_sequence = [d for d in sequence if d not in inner_sequence]
+        # max_wind_speed = np.max(ti['Wind Speed'].values)
+        # inner_sequence = [d for d in sequence if d <= max_wind_speed]
+        # outer_sequence = [d for d in sequence if d not in inner_sequence]
 
-        ti_inner_sequence = interpolator(inner_sequence)  # inner_sequence (m/s) 的的插值
+        # ti_inner_sequence = interpolator(inner_sequence)  # inner_sequence (m/s) 的的插值
 
-        ti_outer_sequence = [ti_inner_sequence[-1]] * len(outer_sequence)
-        ti_sequence = np.append(ti_inner_sequence, ti_outer_sequence)  # sequence范围外的插值
+        # ti_outer_sequence = [ti_inner_sequence[-1]] * len(outer_sequence)
+        # ti_sequence = np.append(ti_inner_sequence, ti_outer_sequence)  # sequence范围外的插值
 
-        if np.all(sequence in np.append(np.arange(3, 20, 2), 20)):
-            ti_sequence[-1] = ti_inner_sequence[-1]     # 将切出风速湍流赋值给 ETM20 和 I20_m10
+        ti_sequence = interpolator(sequence)
+
+        cut_out = int(ti.at[len(ti.index) - 1, 'Wind Speed'])
+        if scope == '3-20' and cut_out > 20:
+            # 将最后两个湍流赋值给 19, 20
+            ti_sequence[-2] = ti.at[len(ti.index) - 2, turbine_id]
+            ti_sequence[-1] = ti.at[len(ti.index) - 1, turbine_id]
 
         return ti_sequence
 
@@ -122,6 +143,7 @@ class TiInterp(Base):
     
     @staticmethod
     def calc_ti_end(ti_fl, wind_end):
+        # I15_m10*(0.75+5.6/wind_end)/(0.75+5.6/15)
         ti_end = ti_fl[6] * (0.75 + 5.6 / wind_end) / (0.75 + 5.6 / 15)
         return ti_end
 

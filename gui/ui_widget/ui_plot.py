@@ -14,7 +14,8 @@ class PlotWidget(QWidget):
         plt.close()
 
         self.figure = plt.figure(figsize=(9, 5))
-        self.bar_plot, self.data = inputs
+        self.bar_plot = inputs['bar_plot']
+        self.data = inputs['loads']
         # this is the Canvas Widget that displays the `figure`
         # it takes the `figure` instance as a parameter to __init__
         self.canvas = FigureCanvas(self.figure)

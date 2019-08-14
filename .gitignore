@@ -5,7 +5,9 @@ build/
 dist/
 *.pyc
 files/
+local_test/
 WindOrder.ico
 WindOrder.spec
 Pipfile
 Pipfile.lock
+备忘.txt

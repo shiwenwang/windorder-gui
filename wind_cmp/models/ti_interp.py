@@ -30,7 +30,7 @@ class TiInterp(Base):
         # print(f'Tips: Cut-in wind speed is {wind_cut_in}m/s.')
 
         wind_cut_in = 3
-        wind_cut_out = int(ti_etm['Wind Speed'].iloc[-1])
+        wind_cut_out = int(ti_etm.at[len(ti_etm.index) - 1, 'Wind Speed'])
         cut_out_list = [19, 19.5, 20, 20.5, 23, 23.5, 25]
 
         if wind_cut_out in cut_out_list:

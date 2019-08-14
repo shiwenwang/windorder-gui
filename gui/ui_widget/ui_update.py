@@ -1,5 +1,3 @@
-
-
 def combobox_update(combobox, new_items, checkbox, full_items):
     current_item = combobox.currentText()
     combobox.clear()
@@ -15,4 +13,4 @@ def listWidget_update(listWidget, new_items):
     listWidget.addItems(new_items)
 
 def list_upper(lst):
-    return [d.upper() for d in lst]
+    return [str(d).upper() for d in lst]

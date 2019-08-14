@@ -12,20 +12,25 @@ from PyQt5.QtWidgets import QFileDialog, QMessageBox
 from functools import partial
 import os
 import sys
+# from time import time
 
 THIS_DIR = os.path.dirname(__file__)
 sys.path.append(os.path.abspath(os.path.join(THIS_DIR, '..')))
-from core import TowerDataBase, main_run, find_available_tower
+from core import TowerDataBase, main_run, find_available_tower, MySQLDataBase, MyFTP
 import wind_cmp
-from ui_widget import *
+from gui.ui_widget import *
 import json
 
 IMG_PATH = os.path.abspath(os.path.join(THIS_DIR, './res/img/'))
 
+
 class Ui_MainWindow(object):
     def __init__(self):
+        self.ftp_host = '10.11.52.185'
+        self.version = '1.1Beta'
+        self.tower_sql = MySQLDataBase()
         self.loads = {}
-        self.sort_towers_selected = []
+        self.all_selected_when_sort = False
         self.wind_info = {}
         self.tower_info = {}
 
@@ -66,7 +71,7 @@ class Ui_MainWindow(object):
         self.gridLayout_farm = QtWidgets.QGridLayout()
         self.gridLayout_farm.setSpacing(6)
         self.gridLayout_farm.setObjectName("gridLayout_farm")
-        self.lineEdit_farm = QtWidgets.QLineEdit(self.groupBox_farm)
+        self.lineEdit_farm = MyLineEdit(self.groupBox_farm)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
@@ -264,21 +269,24 @@ class Ui_MainWindow(object):
         self.comboBox_blade.setMinimumSize(QtCore.QSize(0, 20))
         self.comboBox_blade.setObjectName("comboBox_blade")
         self.gridLayout_attr.addWidget(self.comboBox_blade, 1, 1, 1, 1)
-        self.label_devtype = QtWidgets.QLabel(self.groupBox_turbine_lib)
-        font = QtGui.QFont()
-        font.setPointSize(10)
-        self.label_devtype.setFont(font)
-        self.label_devtype.setObjectName("label_devtype")
-        self.gridLayout_attr.addWidget(self.label_devtype, 1, 2, 1, 1)
-        self.comboBox_devtype = QtWidgets.QComboBox(self.groupBox_turbine_lib)
+        self.comboBox_custom_key = QtWidgets.QComboBox(self.groupBox_turbine_lib)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Fixed)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
-        sizePolicy.setHeightForWidth(self.comboBox_devtype.sizePolicy().hasHeightForWidth())
-        self.comboBox_devtype.setSizePolicy(sizePolicy)
-        self.comboBox_devtype.setMinimumSize(QtCore.QSize(0, 20))
-        self.comboBox_devtype.setObjectName("comboBox_devtype")
-        self.gridLayout_attr.addWidget(self.comboBox_devtype, 1, 3, 1, 1)
+        sizePolicy.setHeightForWidth(self.comboBox_custom_key.sizePolicy().hasHeightForWidth())
+        self.comboBox_custom_key.setSizePolicy(sizePolicy)
+        self.comboBox_custom_key.setMinimumSize(QtCore.QSize(0, 20))
+        self.comboBox_custom_key.setObjectName("comboBox_custom_key")
+        self.gridLayout_attr.addWidget(self.comboBox_custom_key, 1, 2, 1, 1)
+        self.comboBox_custom_value = QtWidgets.QComboBox(self.groupBox_turbine_lib)
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Fixed)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.comboBox_custom_value.sizePolicy().hasHeightForWidth())
+        self.comboBox_custom_value.setSizePolicy(sizePolicy)
+        self.comboBox_custom_value.setMinimumSize(QtCore.QSize(0, 20))
+        self.comboBox_custom_value.setObjectName("comboBox_custom_value")
+        self.gridLayout_attr.addWidget(self.comboBox_custom_value, 1, 3, 1, 1)
         self.gridLayout_attr.setColumnStretch(1, 1)
         self.gridLayout_attr.setColumnStretch(3, 1)
         self.gridLayout.addLayout(self.gridLayout_attr, 0, 0, 1, 1)
@@ -300,9 +308,9 @@ class Ui_MainWindow(object):
         self.checkBox_hubheight = QtWidgets.QCheckBox(self.groupBox_turbine_lib)
         self.checkBox_hubheight.setObjectName("checkBox_hubheight")
         self.horizontalLayout.addWidget(self.checkBox_hubheight)
-        self.checkBox_devtype = QtWidgets.QCheckBox(self.groupBox_turbine_lib)
-        self.checkBox_devtype.setObjectName("checkBox_devtype")
-        self.horizontalLayout.addWidget(self.checkBox_devtype)
+        self.checkBox_custom = QtWidgets.QCheckBox(self.groupBox_turbine_lib)
+        self.checkBox_custom.setObjectName("checkBox_devtype")
+        self.horizontalLayout.addWidget(self.checkBox_custom)
         self.horizontalLayout_2.addLayout(self.horizontalLayout)
         spacerItem1 = QtWidgets.QSpacerItem(10, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
         self.horizontalLayout_2.addItem(spacerItem1)
@@ -506,10 +514,25 @@ class Ui_MainWindow(object):
         icon8.addPixmap(QtGui.QPixmap(os.path.join(IMG_PATH, "./reco_act.png")), QtGui.QIcon.Normal, QtGui.QIcon.Off)
         self.action_towerrec.setIcon(icon8)
         self.action_towerrec.setObjectName("action_towerrec")
+        self.action_update = QtWidgets.QAction(MainWindow)
+        icon_update = QtGui.QIcon()
+        icon_update.addPixmap(QtGui.QPixmap(os.path.join(IMG_PATH, "./update.png")),
+                               QtGui.QIcon.Normal, QtGui.QIcon.Off)
+        self.action_update.setIcon(icon_update)
+        self.action_update.setObjectName("action_update")
         self.action_contact = QtWidgets.QAction(MainWindow)
+        icon_contact = QtGui.QIcon()
+        icon_contact.addPixmap(QtGui.QPixmap(os.path.join(IMG_PATH, "./help.png")),
+                               QtGui.QIcon.Normal, QtGui.QIcon.Off)
+        self.action_contact.setIcon(icon_contact)
         self.action_contact.setObjectName("action_contact")
-        self.action_abort = QtWidgets.QAction(MainWindow)
-        self.action_abort.setObjectName("action_abort")
+        self.action_about = QtWidgets.QAction(MainWindow)
+        icon_about = QtGui.QIcon()
+        icon_about.addPixmap(QtGui.QPixmap(os.path.join(IMG_PATH, "./about.png")), QtGui.QIcon.Normal,
+                               QtGui.QIcon.Off)
+        self.action_about.setIcon(icon_about)
+        self.action_about.setObjectName("action_about")
+
         self.action_export = QtWidgets.QAction(MainWindow)
         icon9 = QtGui.QIcon()
         icon9.addPixmap(QtGui.QPixmap(os.path.join(IMG_PATH, "./export_act.png")), QtGui.QIcon.Normal, QtGui.QIcon.Off)
@@ -523,8 +546,9 @@ class Ui_MainWindow(object):
         self.menu_tools.addAction(self.action_sort)
         self.menu_tools.addAction(self.action_towerrec)
         self.menu_tools.addAction(self.action_export)
+        self.menu_help.addAction(self.action_update)
         self.menu_help.addAction(self.action_contact)
-        self.menu_help.addAction(self.action_abort)
+        self.menu_help.addAction(self.action_about)
         self.menuBar.addAction(self.menu_file.menuAction())
         self.menuBar.addAction(self.menu_database.menuAction())
         self.menuBar.addAction(self.menu_tools.menuAction())
@@ -538,7 +562,7 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
-        MainWindow.setWindowTitle(_translate("MainWindow", "WindOrder"))
+        MainWindow.setWindowTitle(_translate("MainWindow", f"WindOrder v{self.version}"))
         self.groupBox_farm.setTitle(_translate("MainWindow", "场址风参 *"))
         self.pushButton_farm.setText(_translate("MainWindow", "打开文件"))
         self.groupBox_ref_path.setTitle(_translate("MainWindow", "对比风参"))
@@ -575,14 +599,14 @@ class Ui_MainWindow(object):
         self.listWidget_towers_list.setSortingEnabled(__sortingEnabled)
         self.checkBox_select_all.setText(_translate("MainWindow", "全选"))
         self.label_turbine.setText(_translate("MainWindow", "机型："))
-        self.label_hubheight.setText(_translate("MainWindow", "塔架高度："))
+        self.label_hubheight.setText(_translate("MainWindow", "塔架类型："))
         self.label_blade.setText(_translate("MainWindow", "叶片："))
-        self.label_devtype.setText(_translate("MainWindow", "开发类型："))
-        self.label.setText(_translate("MainWindow", "不联动："))
+        # self.comboBox_custom_key.setText(_translate("MainWindow", "自定义："))
+        self.label.setText(_translate("MainWindow", "显示全部："))
         self.checkBox_turbine.setText(_translate("MainWindow", "机型"))
         self.checkBox_blade.setText(_translate("MainWindow", "叶片"))
-        self.checkBox_hubheight.setText(_translate("MainWindow", "塔架高度"))
-        self.checkBox_devtype.setText(_translate("MainWindow", "开发类型"))
+        self.checkBox_hubheight.setText(_translate("MainWindow", "塔架类型"))
+        self.checkBox_custom.setText(_translate("MainWindow", "自定义项"))
         self.pushButton_reset.setText(_translate("MainWindow", "重置"))
         self.groupBox_functools.setTitle(_translate("MainWindow", "功能区"))
         self.pushButton_towerrec.setText(_translate("MainWindow", "推选塔架"))
@@ -598,26 +622,58 @@ class Ui_MainWindow(object):
         self.menu_database.setTitle(_translate("MainWindow", "数据库(&D)"))
         self.menu_tools.setTitle(_translate("MainWindow", "工具(&T)"))
         self.menu_help.setTitle(_translate("MainWindow", "帮助(&H)"))
-        self.action_openfile.setText(_translate("MainWindow", "打开风参文件(&O)"))
-        self.action_deletefile.setText(_translate("MainWindow", "清除文件(&C)"))
-        self.action_exit.setText(_translate("MainWindow", "退出(&E)"))
+        self.action_openfile.setText(_translate("MainWindow", "打开"))
+        self.action_deletefile.setText(_translate("MainWindow", "清除"))
+        self.action_exit.setText(_translate("MainWindow", "退出"))
         self.action_db_connect.setText(_translate("MainWindow", "连接"))
         self.action_db_config.setText(_translate("MainWindow", "配置..."))
-        self.action_sort.setText(_translate("MainWindow", "风参排序(&S)"))
-        self.action_towerrec.setText(_translate("MainWindow", "推选塔架(&R)"))
+        self.action_sort.setText(_translate("MainWindow", "风参排序"))
+        self.action_towerrec.setText(_translate("MainWindow", "推选塔架"))
         self.action_contact.setText(_translate("MainWindow", "获得帮助"))
-        self.action_abort.setText(_translate("MainWindow", "关于"))
+        self.action_update.setText(_translate("MainWindow", "检查更新"))
+        self.action_about.setText(_translate("MainWindow", "关于"))
         self.action_export.setText(_translate("MainWindow", "导出到Excel"))
-
 
 # import image_rc
     def ui_init(self):
+        try:
+            with open('./config/config.json', 'r') as f:
+                config = json.load(f)
+        except (FileNotFoundError, JSONDecodeError) as e:
+            config = {}
+        self.mysql_connect(**config)
+
         self.groupBox_ref_path.setChecked(False)
         self.groupBox_turbine_lib.setChecked(True)
         self.listWidget_towers_list.clear()
         self.connect()
-        self.read_json()
-        self.statusBar.showMessage('就绪')
+        # self.read_json()
+        self.comboBox_init()
+        self.statusBar.showMessage('就绪, 已连接至数据库.')
+
+    def comboBox_init(self):
+        if self.tower_sql.db.is_connected() and self.tower_sql.db.database:
+            self.turbine_list = list_upper([''] + sorted(self.tower_sql.query('机组名称')))
+            self.blade_list = list_upper([''] + sorted(self.tower_sql.query('叶片名称')))
+            self.hubheight_list = list_upper([''] + sorted(self.tower_sql.query('塔架类型')))
+            self.custom_key_list = ['自定义项', '塔架段数', '塔架直径', '基础类型', '箱变位置', '归档分类']
+            self.custom_value_dict = {k: list_upper([''] + sorted(self.tower_sql.query(k)))
+                                      for k in self.custom_key_list}
+            self.comboBox_custom_key.addItems(self.custom_key_list)
+            custom_key = self.comboBox_custom_key.currentText()
+            self.comboBox_custom_value.addItems(self.custom_value_dict[custom_key])
+        else:
+            self.turbine_list = []
+            self.blade_list = []
+            self.hubheight_list = []
+            self.custom_key_list = []
+            self.custom_value_list = []
+            self.comboBox_custom_key.addItems(self.custom_key_list)
+            self.comboBox_custom_value.addItems(self.custom_value_list)
+
+        self.comboBox_turbine.addItems(self.turbine_list)
+        self.comboBox_blade.addItems(self.blade_list)
+        self.comboBox_hubheight.addItems(self.hubheight_list)
 
     def read_json(self):
         json_folder =  os.path.abspath(os.path.join(THIS_DIR, "./res/Tower_Database/"))
@@ -634,11 +690,10 @@ class Ui_MainWindow(object):
         self.comboBox_blade.addItems(self.blade_list)
         self.hubheight_list = list_upper(['',]+ sorted(list(basic_info['hub_height'])))
         self.comboBox_hubheight.addItems(self.hubheight_list)
-        self.devtype_list = list_upper(['',]+ sorted(list(basic_info['dev_type'])))
-        self.comboBox_devtype.addItems(self.devtype_list)
+        self.custom_value_list = list_upper(['',]+ sorted(list(basic_info['dev_type'])))
+        self.comboBox_custom_value.addItems(self.custom_value_list)
 
     def connect(self):
-
         # 文件操作
         self.pushButton_farm.clicked.connect(self.on_pushButton_farm_clicked)
         self.action_openfile.triggered.connect(self.on_pushButton_farm_clicked)
@@ -658,7 +713,8 @@ class Ui_MainWindow(object):
         self.comboBox_turbine.activated.connect(self.on_comboBox_turbine_activated)
         self.comboBox_blade.activated.connect(self.on_comboBox_blade_activated)
         self.comboBox_hubheight.activated.connect(self.on_comboBox_hubheight_activated)
-        self.comboBox_devtype.activated.connect(self.on_comboBox_devtype_activated)
+        self.comboBox_custom_value.activated.connect(self.on_comboBox_custom_value_activated)
+        self.comboBox_custom_key.activated.connect(self.on_comboBox_custom_key_activated)
 
         # 两个group相互抑制
         self.groupBox_ref_path.clicked.connect(self.on_groupBox_ref_path_changChecked)
@@ -668,7 +724,7 @@ class Ui_MainWindow(object):
         self.checkBox_turbine.clicked.connect(self.on_checkBox_turbine_clicked)
         self.checkBox_blade.clicked.connect(self.on_checkBox_blade_clicked)
         self.checkBox_hubheight.clicked.connect(self.on_checkBox_hubheight_clicked)
-        self.checkBox_devtype.clicked.connect(self.on_checkBox_devtype_clicked)
+        self.checkBox_custom.clicked.connect(self.on_checkBox_devtype_clicked)
 
         # 全选
         self.checkBox_select_all.clicked.connect(self.on_checkBox_select_all_clicked)
@@ -686,20 +742,31 @@ class Ui_MainWindow(object):
         self.action_export.triggered.connect(self.on_pushButton_export_clicked)
 
         # 帮助
+        self.action_update.triggered.connect(self.update)
         self.action_contact.triggered.connect(self.contact)
-        self.action_abort.triggered.connect(self.abort)
-    
-    def contact(self):
+        self.action_about.triggered.connect(self.about)
+
+    @staticmethod
+    def contact():
         contact_dialog = ContactDialog()
         contact_dialog.exec()
 
-    def abort(self):
-        abort_dialog = AbortDialog()
-        abort_dialog.exec()
+    # @staticmethod
+    def about(self):
+        about_dialog = aboutDialog(self.version)
+        about_dialog.exec()
 
-    @staticmethod
-    def mysql_connect(**kwargs):
-        pass
+    def update(self):
+        update_dialog = UpdateDialog(self.ftp_host, self.version)
+        update_dialog.exec()
+
+    def mysql_connect(self, **kwargs):
+        if kwargs:
+            self.tower_sql.set_config(kwargs)
+            msg = self.tower_sql.connect()
+            self.statusBar.showMessage(msg, -1)
+        else:
+            self.statusBar.showMessage("数据库无法连接，请重新配置！", -1)
 
     def on_action_db_connect_triggered(self):
         config = {}
@@ -748,169 +815,253 @@ class Ui_MainWindow(object):
         file_name = QFileDialog.getOpenFileName(None, '选择文件', '', 'Excel Files (*.xls *xlsx)')
         self.lineEdit_ref_cz.setText(file_name[0])
 
-    def on_comboBox_turbine_activated(self):
+    def get_combobox_current_value(self):
         turbine_value = self.comboBox_turbine.currentText()
         hub_value = self.comboBox_hubheight.currentText()
         blade_value = self.comboBox_blade.currentText()
-        dev_value = self.comboBox_devtype.currentText()
-        filter_inputs = {'机型': turbine_value,'塔架高度': hub_value,'匹配叶片': blade_value,'开发类型': dev_value}
-        filtered = self.db.filter(**filter_inputs)
-        filtered_basic_info = self.db.get_basic_info(filtered)
-        
-        # turbine_list = list_upper(['',] + sorted(list(filtered_basic_info['turbine_type'])))
+        custom_key = self.comboBox_custom_key.currentText()
+        custom_value = self.comboBox_custom_value.currentText()
+
+        value = {'turbine': turbine_value,
+                 'hub': hub_value,
+                 'blade': blade_value,
+                 'custom_key': custom_key,
+                 'custom_value': custom_value}
+        return value
+
+    def on_comboBox_turbine_activated(self):
+        combobox_value = self.get_combobox_current_value()
+
+        # filter_inputs = {'叶片名称': combobox_value['blade'],
+        #                  '塔架类型': combobox_value['hub'],
+        #                  combobox_value['custom_key']: combobox_value['custom_value']}
+        # filtered = self.tower_sql.query('机组名称', **filter_inputs)
+        # turbine_list = list_upper([''] + sorted(filtered))
         # combobox_update(self.comboBox_turbine, turbine_list, self.checkBox_turbine, self.turbine_list)
 
-        blade_list = list_upper(['',]+ sorted(list(filtered_basic_info['blade_type'])))
+        filter_inputs = {'机组名称': combobox_value['turbine'],
+                         '塔架类型': combobox_value['hub'],
+                         combobox_value['custom_key']: combobox_value['custom_value']}
+        filtered = self.tower_sql.query('叶片名称', **filter_inputs)
+        blade_list = list_upper(['',]+ sorted(filtered))
         combobox_update(self.comboBox_blade, blade_list, self.checkBox_blade, self.blade_list)
 
-        hubheight_list = list_upper(['',]+ sorted(list(filtered_basic_info['hub_height'])))
+        filter_inputs = {'机组名称': combobox_value['turbine'],
+                         '叶片名称': combobox_value['blade'],
+                         combobox_value['custom_key']: combobox_value['custom_value']}
+        filtered = self.tower_sql.query('塔架类型', **filter_inputs)
+        hubheight_list = list_upper(['',]+ sorted(filtered))
         combobox_update(self.comboBox_hubheight, hubheight_list, self.checkBox_hubheight, self.hubheight_list)
 
-        devtype_list = list_upper(['',]+ sorted(list(filtered_basic_info['dev_type'])))
-        combobox_update(self.comboBox_devtype, devtype_list, self.checkBox_devtype, self.devtype_list)
+        filter_inputs = {'机组名称': combobox_value['turbine'],
+                         '叶片名称': combobox_value['blade'],
+                         '塔架类型': combobox_value['hub']}
+        filtered = self.tower_sql.query(combobox_value['custom_key'], **filter_inputs)
+        custome_value_list = list_upper(['',]+ sorted(filtered))
+        combobox_update(self.comboBox_custom_value, custome_value_list, self.checkBox_custom,
+                        self.custom_value_dict[combobox_value['custom_key']])
 
-        available_tower = sorted(list(filtered.keys()))
+        filter_inputs = {'机组名称': combobox_value['turbine'],
+                         '叶片名称': combobox_value['blade'],
+                         '塔架类型': combobox_value['hub'],
+                         combobox_value['custom_key']: combobox_value['custom_value']}
+        available_tower = sorted(self.tower_sql.query('塔架编号', **filter_inputs))
         listWidget_update(self.listWidget_towers_list, available_tower)
+        self.loads = {}
 
         self.checkBox_select_all.setChecked(False)
 
     def on_comboBox_blade_activated(self):
-        turbine_value = self.comboBox_turbine.currentText()
-        hub_value = self.comboBox_hubheight.currentText()
-        blade_value = self.comboBox_blade.currentText()
-        dev_value = self.comboBox_devtype.currentText()
-        filter_inputs = {'机型': turbine_value,'塔架高度': hub_value,'匹配叶片': blade_value,'开发类型': dev_value}
-        filtered = self.db.filter(**filter_inputs)
-        filtered_basic_info = self.db.get_basic_info(filtered)
-        
-        turbine_list = list_upper(['',] + sorted(list(filtered_basic_info['turbine_type'])))
+        combobox_value = self.get_combobox_current_value()
+
+        filter_inputs = {'叶片名称': combobox_value['blade'],
+                         '塔架类型': combobox_value['hub'],
+                         combobox_value['custom_key']: combobox_value['custom_value']}
+        filtered = self.tower_sql.query('机组名称', **filter_inputs)
+        turbine_list = list_upper([''] + sorted(filtered))
         combobox_update(self.comboBox_turbine, turbine_list, self.checkBox_turbine, self.turbine_list)
 
-        # blade_list = list_upper(['',]+ sorted(list(filtered_basic_info['blade_type'])))
+        # filter_inputs = {'机组名称': combobox_value['turbine'],
+        #                  '塔架类型': combobox_value['hub'],
+        #                  combobox_value['custom_key']: combobox_value['custom_value']}
+        # filtered = self.tower_sql.query('叶片名称', **filter_inputs)
+        # blade_list = list_upper(['', ] + sorted(filtered))
         # combobox_update(self.comboBox_blade, blade_list, self.checkBox_blade, self.blade_list)
 
-        hubheight_list = list_upper(['',]+ sorted(list(filtered_basic_info['hub_height'])))
+        filter_inputs = {'机组名称': combobox_value['turbine'],
+                         '叶片名称': combobox_value['blade'],
+                         combobox_value['custom_key']: combobox_value['custom_value']}
+        filtered = self.tower_sql.query('塔架类型', **filter_inputs)
+        hubheight_list = list_upper(['', ] + sorted(filtered))
         combobox_update(self.comboBox_hubheight, hubheight_list, self.checkBox_hubheight, self.hubheight_list)
 
-        devtype_list = list_upper(['',]+ sorted(list(filtered_basic_info['dev_type'])))
-        combobox_update(self.comboBox_devtype, devtype_list, self.checkBox_devtype, self.devtype_list)
+        filter_inputs = {'机组名称': combobox_value['turbine'],
+                         '叶片名称': combobox_value['blade'],
+                         '塔架类型': combobox_value['hub']}
+        filtered = self.tower_sql.query(combobox_value['custom_key'], **filter_inputs)
+        custome_value_list = list_upper(['', ] + sorted(filtered))
+        combobox_update(self.comboBox_custom_value, custome_value_list, self.checkBox_custom,
+                        self.custom_value_dict[combobox_value['custom_key']])
 
-        available_tower = sorted(list(filtered.keys()))
+        filter_inputs = {'机组名称': combobox_value['turbine'],
+                         '叶片名称': combobox_value['blade'],
+                         '塔架类型': combobox_value['hub'],
+                         combobox_value['custom_key']: combobox_value['custom_value']}
+        available_tower = sorted(self.tower_sql.query('塔架编号', **filter_inputs))
         listWidget_update(self.listWidget_towers_list, available_tower)
+        self.loads = {}
 
         self.checkBox_select_all.setChecked(False)
 
     def on_comboBox_hubheight_activated(self):
-        turbine_value = self.comboBox_turbine.currentText()
-        hub_value = self.comboBox_hubheight.currentText()
-        blade_value = self.comboBox_blade.currentText()
-        dev_value = self.comboBox_devtype.currentText()
-        filter_inputs = {'机型': turbine_value,'塔架高度': hub_value,'匹配叶片': blade_value,'开发类型': dev_value}
-        filtered = self.db.filter(**filter_inputs)
-        filtered_basic_info = self.db.get_basic_info(filtered)
-        
-        turbine_list = list_upper(['',] + sorted(list(filtered_basic_info['turbine_type'])))
+        combobox_value = self.get_combobox_current_value()
+
+        filter_inputs = {'叶片名称': combobox_value['blade'],
+                         '塔架类型': combobox_value['hub'],
+                         combobox_value['custom_key']: combobox_value['custom_value']}
+        filtered = self.tower_sql.query('机组名称', **filter_inputs)
+        turbine_list = list_upper([''] + sorted(filtered))
         combobox_update(self.comboBox_turbine, turbine_list, self.checkBox_turbine, self.turbine_list)
 
-        blade_list = list_upper(['',]+ sorted(list(filtered_basic_info['blade_type'])))
+        filter_inputs = {'机组名称': combobox_value['turbine'],
+                         '塔架类型': combobox_value['hub'],
+                         combobox_value['custom_key']: combobox_value['custom_value']}
+        filtered = self.tower_sql.query('叶片名称', **filter_inputs)
+        blade_list = list_upper(['', ] + sorted(filtered))
         combobox_update(self.comboBox_blade, blade_list, self.checkBox_blade, self.blade_list)
 
-        # hubheight_list = list_upper(['',]+ sorted(list(filtered_basic_info['hub_height'])))
+        # filter_inputs = {'机组名称': combobox_value['turbine'],
+        #                  '叶片名称': combobox_value['blade'],
+        #                  combobox_value['custom_key']: combobox_value['custom_value']}
+        # filtered = self.tower_sql.query('塔架类型', **filter_inputs)
+        # hubheight_list = list_upper(['', ] + sorted(filtered))
         # combobox_update(self.comboBox_hubheight, hubheight_list, self.checkBox_hubheight, self.hubheight_list)
 
-        devtype_list = list_upper(['',]+ sorted(list(filtered_basic_info['dev_type'])))
-        combobox_update(self.comboBox_devtype, devtype_list, self.checkBox_devtype, self.devtype_list)
+        filter_inputs = {'机组名称': combobox_value['turbine'],
+                         '叶片名称': combobox_value['blade'],
+                         '塔架类型': combobox_value['hub']}
+        filtered = self.tower_sql.query(combobox_value['custom_key'], **filter_inputs)
+        custome_value_list = list_upper(['', ] + sorted(filtered))
+        combobox_update(self.comboBox_custom_value, custome_value_list, self.checkBox_custom,
+                        self.custom_value_dict[combobox_value['custom_key']])
 
-        available_tower = sorted(list(filtered.keys()))
+        filter_inputs = {'机组名称': combobox_value['turbine'],
+                         '叶片名称': combobox_value['blade'],
+                         '塔架类型': combobox_value['hub'],
+                         combobox_value['custom_key']: combobox_value['custom_value']}
+        available_tower = sorted(self.tower_sql.query('塔架编号', **filter_inputs))
         listWidget_update(self.listWidget_towers_list, available_tower)
+        self.loads = {}
 
         self.checkBox_select_all.setChecked(False)
 
-    def on_comboBox_devtype_activated(self):
-        turbine_value = self.comboBox_turbine.currentText()
-        hub_value = self.comboBox_hubheight.currentText()
-        blade_value = self.comboBox_blade.currentText()
-        dev_value = self.comboBox_devtype.currentText()
-        filter_inputs = {'机型': turbine_value,'塔架高度': hub_value,'匹配叶片': blade_value,'开发类型': dev_value}
-        filtered = self.db.filter(**filter_inputs)
-        filtered_basic_info = self.db.get_basic_info(filtered)
-        
-        turbine_list = list_upper(['',] + sorted(list(filtered_basic_info['turbine_type'])))
+    def on_comboBox_custom_value_activated(self):
+        combobox_value = self.get_combobox_current_value()
+
+        filter_inputs = {'叶片名称': combobox_value['blade'],
+                         '塔架类型': combobox_value['hub'],
+                         combobox_value['custom_key']: combobox_value['custom_value']}
+        filtered = self.tower_sql.query('机组名称', **filter_inputs)
+        turbine_list = list_upper([''] + sorted(filtered))
         combobox_update(self.comboBox_turbine, turbine_list, self.checkBox_turbine, self.turbine_list)
 
-        blade_list = list_upper(['',]+ sorted(list(filtered_basic_info['blade_type'])))
+        filter_inputs = {'机组名称': combobox_value['turbine'],
+                         '塔架类型': combobox_value['hub'],
+                         combobox_value['custom_key']: combobox_value['custom_value']}
+        filtered = self.tower_sql.query('叶片名称', **filter_inputs)
+        blade_list = list_upper(['', ] + sorted(filtered))
         combobox_update(self.comboBox_blade, blade_list, self.checkBox_blade, self.blade_list)
 
-        hubheight_list = list_upper(['',]+ sorted(list(filtered_basic_info['hub_height'])))
+        filter_inputs = {'机组名称': combobox_value['turbine'],
+                         '叶片名称': combobox_value['blade'],
+                         combobox_value['custom_key']: combobox_value['custom_value']}
+        filtered = self.tower_sql.query('塔架类型', **filter_inputs)
+        hubheight_list = list_upper(['', ] + sorted(filtered))
         combobox_update(self.comboBox_hubheight, hubheight_list, self.checkBox_hubheight, self.hubheight_list)
 
-        # devtype_list = list_upper(['',]+ sorted(list(filtered_basic_info['dev_type'])))
-        # combobox_update(self.comboBox_devtype, devtype_list, self.checkBox_devtype, self.devtype_list)
+        # filter_inputs = {'机组名称': combobox_value['turbine'],
+        #                  '叶片名称': combobox_value['blade'],
+        #                  '塔架类型': combobox_value['hub']}
+        # filtered = self.tower_sql.query(combobox_value['custom_key'], **filter_inputs)
+        # custome_value_list = list_upper(['', ] + sorted(filtered))
+        # combobox_update(self.comboBox_custom_value, custome_value_list, self.checkBox_custom,
+        #                         self.custom_value_dict[combobox_value['custom_key']])
 
-        available_tower = sorted(list(filtered.keys()))
+        filter_inputs = {'机组名称': combobox_value['turbine'],
+                         '叶片名称': combobox_value['blade'],
+                         '塔架类型': combobox_value['hub'],
+                         combobox_value['custom_key']: combobox_value['custom_value']}
+        available_tower = sorted(self.tower_sql.query('塔架编号', **filter_inputs))
         listWidget_update(self.listWidget_towers_list, available_tower)
+        self.loads = {}
 
         self.checkBox_select_all.setChecked(False)
+
+    def on_comboBox_custom_key_activated(self):
+        combobox_value = self.get_combobox_current_value()
+
+        filter_inputs = {'机组名称': combobox_value['turbine'],
+                         '叶片名称': combobox_value['blade'],
+                         '塔架类型': combobox_value['hub']}
+        filtered = self.tower_sql.query(combobox_value['custom_key'], **filter_inputs)
+        custome_value_list = list_upper(['', ] + sorted(filtered))
+        combobox_update(self.comboBox_custom_value, custome_value_list, self.checkBox_custom,
+                        self.custom_value_dict[combobox_value['custom_key']])
 
     def on_checkBox_turbine_clicked(self):
         if self.checkBox_turbine.isChecked():
             combobox_update(self.comboBox_turbine, [], self.checkBox_turbine, self.turbine_list)
         else:
-            turbine_value = self.comboBox_turbine.currentText()
-            hub_value = self.comboBox_hubheight.currentText()
-            blade_value = self.comboBox_blade.currentText()
-            dev_value = self.comboBox_devtype.currentText()
-            filter_inputs = {'机型': turbine_value,'塔架高度': hub_value,'匹配叶片': blade_value,'开发类型': dev_value}
-            filtered = self.db.filter(**filter_inputs)
-            filtered_basic_info = self.db.get_basic_info(filtered)
-            
-            turbine_list = list_upper(['',] + sorted(list(filtered_basic_info['turbine_type'])))
+            combobox_value = self.get_combobox_current_value()
+
+            filter_inputs = {'叶片名称': combobox_value['blade'],
+                             '塔架类型': combobox_value['hub'],
+                             combobox_value['custom_key']: combobox_value['custom_value']}
+            filtered = self.tower_sql.query('机组名称', **filter_inputs)
+            turbine_list = list_upper([''] + sorted(filtered))
             combobox_update(self.comboBox_turbine, turbine_list, self.checkBox_turbine, self.turbine_list)
     
     def on_checkBox_blade_clicked(self):
         if self.checkBox_blade.isChecked():
             combobox_update(self.comboBox_blade, [], self.checkBox_blade, self.blade_list)
         else:
-            turbine_value = self.comboBox_turbine.currentText()
-            hub_value = self.comboBox_hubheight.currentText()
-            blade_value = self.comboBox_blade.currentText()
-            dev_value = self.comboBox_devtype.currentText()
-            filter_inputs = {'机型': turbine_value,'塔架高度': hub_value,'匹配叶片': blade_value,'开发类型': dev_value}
-            filtered = self.db.filter(**filter_inputs)
-            filtered_basic_info = self.db.get_basic_info(filtered)
-            
-            blade_list = list_upper(['',]+ sorted(list(filtered_basic_info['blade_type'])))
+            combobox_value = self.get_combobox_current_value()
+
+            filter_inputs = {'机组名称': combobox_value['turbine'],
+                             '塔架类型': combobox_value['hub'],
+                             combobox_value['custom_key']: combobox_value['custom_value']}
+            filtered = self.tower_sql.query('叶片名称', **filter_inputs)
+            blade_list = list_upper(['', ] + sorted(filtered))
             combobox_update(self.comboBox_blade, blade_list, self.checkBox_blade, self.blade_list)
 
     def on_checkBox_hubheight_clicked(self):
         if self.checkBox_hubheight.isChecked():
             combobox_update(self.comboBox_hubheight, [], self.checkBox_hubheight, self.hubheight_list)
         else:
-            turbine_value = self.comboBox_turbine.currentText()
-            hub_value = self.comboBox_hubheight.currentText()
-            blade_value = self.comboBox_blade.currentText()
-            dev_value = self.comboBox_devtype.currentText()
-            filter_inputs = {'机型': turbine_value,'塔架高度': hub_value,'匹配叶片': blade_value,'开发类型': dev_value}
-            filtered = self.db.filter(**filter_inputs)
-            filtered_basic_info = self.db.get_basic_info(filtered)
-            
-            hubheight_list = list_upper(['',]+ sorted(list(filtered_basic_info['hub_height'])))
+            combobox_value = self.get_combobox_current_value()
+
+            filter_inputs = {'机组名称': combobox_value['turbine'],
+                             '叶片名称': combobox_value['blade'],
+                             combobox_value['custom_key']: combobox_value['custom_value']}
+            filtered = self.tower_sql.query('塔架类型', **filter_inputs)
+            hubheight_list = list_upper(['', ] + sorted(filtered))
             combobox_update(self.comboBox_hubheight, hubheight_list, self.checkBox_hubheight, self.hubheight_list)
 
     def on_checkBox_devtype_clicked(self):
-        if self.checkBox_devtype.isChecked():
-            combobox_update(self.comboBox_devtype, [], self.checkBox_devtype, self.devtype_list)
+        if self.checkBox_custom.isChecked():
+            custom_key = self.comboBox_custom_key.currentText()
+            combobox_update(self.comboBox_custom_value, [], self.checkBox_custom,
+                            self.custom_value_dict[custom_key])
         else:
-            turbine_value = self.comboBox_turbine.currentText()
-            hub_value = self.comboBox_hubheight.currentText()
-            blade_value = self.comboBox_blade.currentText()
-            dev_value = self.comboBox_devtype.currentText()
-            filter_inputs = {'机型': turbine_value,'塔架高度': hub_value,'匹配叶片': blade_value,'开发类型': dev_value}
-            filtered = self.db.filter(**filter_inputs)
-            filtered_basic_info = self.db.get_basic_info(filtered)
-            
-            devtype_list = list_upper(['',]+ sorted(list(filtered_basic_info['dev_type'])))
-            combobox_update(self.comboBox_devtype, devtype_list, self.checkBox_devtype, self.devtype_list)
+            combobox_value = self.get_combobox_current_value()
+
+            filter_inputs = {'机组名称': combobox_value['turbine'],
+                             '叶片名称': combobox_value['blade'],
+                             '塔架类型': combobox_value['hub']}
+            filtered = self.tower_sql.query(combobox_value['custom_key'], **filter_inputs)
+            custome_value_list = list_upper(['', ] + sorted(filtered))
+            combobox_update(self.comboBox_custom_value, custome_value_list, self.checkBox_custom,
+                            self.custom_value_dict[combobox_value['custom_key']])
 
     def on_checkBox_select_all_clicked(self):
         if self.checkBox_select_all.isChecked():
@@ -923,12 +1074,12 @@ class Ui_MainWindow(object):
 
     def on_pushButton_reset_clicked(self):
         self.comboBox_turbine.clear()
-        self.comboBox_devtype.clear()
+        self.comboBox_custom_value.clear()
         self.comboBox_blade.clear()
         self.comboBox_hubheight.clear()
         self.listWidget_towers_list.clear()
         self.comboBox_turbine.addItems(self.turbine_list)
-        self.comboBox_devtype.addItems(self.devtype_list)
+        self.comboBox_custom_value.addItems(self.custom_value_list)
         self.comboBox_blade.addItems(self.blade_list)
         self.comboBox_hubheight.addItems(self.hubheight_list)
 
@@ -937,34 +1088,41 @@ class Ui_MainWindow(object):
         self.statusBar.showMessage('计算中...')
         wind_path = self.lineEdit_farm.text()
         if wind_path:
-            if self.groupBox_ref_path.isChecked():
-                this_dir = os.path.dirname(__file__)
-                ref_path = []
-                if self.lineEdit_ref_std.text():
-                    ref_path.append(self.lineEdit_ref_std.text())
-                if self.lineEdit_ref_cz.text():
-                    ref_path.append(self.lineEdit_ref_cz.text())
-                wind_cmp.main_run(this_dir, wind_path, ref_path)
+            if self.tower_sql.db.is_connected() and self.tower_sql.db.database:
+                if self.groupBox_ref_path.isChecked():
+                    this_dir = os.path.dirname(__file__)
+                    ref_path = []
+                    if self.lineEdit_ref_std.text():
+                        ref_path.append(self.lineEdit_ref_std.text())
+                    if self.lineEdit_ref_cz.text():
+                        ref_path.append(self.lineEdit_ref_cz.text())
+                    wind_cmp.main_run(this_dir, wind_path, ref_path)
+                else:
+                    selected_towers = [item.text() for item in self.listWidget_towers_list.selectedItems()]
+
+                    # 用于确定排序时是否全选了塔架, 便于推荐时直接采用载荷结果
+                    self.all_selected_when_sort = self.checkBox_select_all.isChecked()
+
+                    # start = time()
+                    ref_wind = self.tower_sql.get_wind_info(selected_towers)
+                    # end = time()
+                    # print(f'数据库查询耗时：{end - start}s')
+
+                    res = main_run(wind_path, ref_wind)                    
+                    self.loads = res['loads'] if self.all_selected_when_sort else {}
+
+                    plot_widget = PlotWidget(res)
+                    plot_widget.plot()
+                    plot_widget.show()
+
+                    self.statusBar.showMessage('计算完成')
             else:
-                turbine_value = self.comboBox_turbine.currentText()
-                hub_value = self.comboBox_hubheight.currentText()
-                blade_value = self.comboBox_blade.currentText()
-                dev_value = self.comboBox_devtype.currentText()
-                filter_inputs = {'机型': turbine_value,'塔架高度': hub_value,'匹配叶片': blade_value,'开发类型': dev_value}
-                filtered = self.db.filter(**filter_inputs)
-                filtered_wind = self.db.get_wind_info(filtered)
-
-                towers = [item.text() for item in self.listWidget_towers_list.selectedItems()]
-                ref_wind = {k: v for k, v in filtered_wind.items() if k in towers}
-
-                res = main_run(wind_path, ref_wind)
-                self.loads = res[1]
-                self.sort_towers_selected = towers
-                plot_widget = PlotWidget(res)
-                plot_widget.plot()
-                plot_widget.show()
-
-                self.statusBar.showMessage('计算完成')                       
+                msg = QMessageBox()
+                msg.setWindowTitle("警告")
+                msg.setIcon(QMessageBox.Warning)
+                msg.setText("数据库未连接！")
+                msg.exec()
+                self.statusBar.clearMessage()
         else:
             msg = QMessageBox()
             msg.setWindowTitle("警告")
@@ -978,26 +1136,37 @@ class Ui_MainWindow(object):
         self.statusBar.showMessage('计算中...')
         wind_path = self.lineEdit_farm.text()
         if wind_path:
-            turbine_value = self.comboBox_turbine.currentText()
-            hub_value = self.comboBox_hubheight.currentText()
-            blade_value = self.comboBox_blade.currentText()
-            dev_value = self.comboBox_devtype.currentText()
-            filter_inputs = {'机型': turbine_value,'塔架高度': hub_value,'匹配叶片': blade_value,'开发类型': dev_value}
-            filtered = self.db.filter(**filter_inputs)
-            tower_list = filtered.keys()
+            if self.tower_sql.db.is_connected() and self.tower_sql.db.database:
+                combobox_value = self.get_combobox_current_value()
+                filter_inputs = {'机组名称': combobox_value['turbine'],
+                                 '叶片名称': combobox_value['blade'],
+                                 '塔架类型': combobox_value['hub'],
+                                 combobox_value['custom_key']: combobox_value['custom_value']}
 
-            if set(self.sort_towers_selected) == set(tower_list):
-                available_tower = find_available_tower(wind_path, filter_inputs, loads=self.loads, sorted_by_weight=False)
-            else:
-                available_tower = find_available_tower(wind_path, filter_inputs, loads={}, sorted_by_weight=False)
-            
-            if available_tower:
-                self.clear_result()
-                self.show_result(available_tower, filter_inputs) # 结果显示
-                self.statusBar.showMessage(f'计算完成，找到{len(available_tower)}款塔架')
-            else:
-                self.statusBar.showMessage('未找到合适塔架')
+                tower_list = self.tower_sql.query('塔架编号', **filter_inputs)
+                if tower_list:
+                    ref_wind = self.tower_sql.get_wind_info(tower_list)
 
+                    if self.all_selected_when_sort:
+                        available_tower = find_available_tower(wind_path, ref_wind, loads=self.loads, sorted_by_weight=False)
+                    else:
+                        available_tower = find_available_tower(wind_path, ref_wind, loads={}, sorted_by_weight=False)
+
+                    if available_tower:
+                        self.clear_result()
+                        self.show_result(available_tower) # 结果显示
+                        self.statusBar.showMessage(f'计算完成，找到{len(available_tower)}款塔架')
+                    else:
+                        self.statusBar.showMessage('未找到合适塔架')
+                else:
+                    self.statusBar.showMessage('未找到塔架，缺少定义')
+            else:
+                msg = QMessageBox()
+                msg.setWindowTitle("警告")
+                msg.setIcon(QMessageBox.Warning)
+                msg.setText("数据库未连接！")
+                msg.exec()
+                self.statusBar.clearMessage()
         else:
             msg = QMessageBox()
             msg.setWindowTitle("警告")
@@ -1015,33 +1184,41 @@ class Ui_MainWindow(object):
         self.tableWidget_etm.setRowCount(0)
         self.tableWidget_etm.setColumnCount(0)
 
-    def show_result(self, available_tower, filter_inputs):
+    def show_result(self, available_tower):
         bg_brush_blue = QtGui.QBrush(QtGui.QColor(173, 216, 230, 127))  # 浅蓝
         bg_brush_purple = QtGui.QBrush(QtGui.QColor(230, 230, 250, 127))  # 浅紫
 
         tower_count = len(available_tower)
         self.tableWidget_tower_result.setRowCount(tower_count)  
-        self.tableWidget_tower_result.setColumnCount(9)
+        self.tableWidget_tower_result.setColumnCount(11)
 
         item_tower_id = QtWidgets.QTableWidgetItem('塔架编号')
         item_tower_id.setBackground(bg_brush_blue)
         self.tableWidget_tower_result.setHorizontalHeaderItem(0, item_tower_id)
 
+        item_tower_id = QtWidgets.QTableWidgetItem('载荷比例')
+        item_tower_id.setBackground(bg_brush_purple)
+        self.tableWidget_tower_result.setHorizontalHeaderItem(1, item_tower_id)
+
+        item_tower_id = QtWidgets.QTableWidgetItem('受限载荷')
+        item_tower_id.setBackground(bg_brush_blue)
+        self.tableWidget_tower_result.setHorizontalHeaderItem(2, item_tower_id)
+
         item_tower_weight = QtWidgets.QTableWidgetItem('塔架重量(t)')
         item_tower_weight.setBackground(bg_brush_purple)
-        self.tableWidget_tower_result.setHorizontalHeaderItem(1, item_tower_weight)
+        self.tableWidget_tower_result.setHorizontalHeaderItem(3, item_tower_weight)
 
         item_air_density = QtWidgets.QTableWidgetItem('ρ')
         item_air_density.setBackground(bg_brush_purple)
-        self.tableWidget_tower_result.setHorizontalHeaderItem(2, item_air_density)
+        self.tableWidget_tower_result.setHorizontalHeaderItem(4, item_air_density)
 
         item_wind_vave = QtWidgets.QTableWidgetItem('Vave')
         item_wind_vave.setBackground(bg_brush_purple)
-        self.tableWidget_tower_result.setHorizontalHeaderItem(3, item_wind_vave)
+        self.tableWidget_tower_result.setHorizontalHeaderItem(5, item_wind_vave)
 
         item_weibull_a = QtWidgets.QTableWidgetItem('A')
         item_weibull_a.setBackground(bg_brush_purple)
-        self.tableWidget_tower_result.setHorizontalHeaderItem(4, item_weibull_a)
+        self.tableWidget_tower_result.setHorizontalHeaderItem(6, item_weibull_a)
 
         item_weibull_k = QtWidgets.QTableWidgetItem('K')
         item_weibull_k.setBackground(bg_brush_purple)
@@ -1049,23 +1226,32 @@ class Ui_MainWindow(object):
 
         item_wind_shear = QtWidgets.QTableWidgetItem('α')
         item_wind_shear.setBackground(bg_brush_purple)
-        self.tableWidget_tower_result.setHorizontalHeaderItem(6, item_wind_shear)
+        self.tableWidget_tower_result.setHorizontalHeaderItem(7, item_wind_shear)
 
         item_inflow = QtWidgets.QTableWidgetItem('θmean')
         item_inflow.setBackground(bg_brush_purple)        
-        self.tableWidget_tower_result.setHorizontalHeaderItem(7, item_inflow)
+        self.tableWidget_tower_result.setHorizontalHeaderItem(8, item_inflow)
 
         item_wind_v50 = QtWidgets.QTableWidgetItem('V50')
         item_wind_v50.setBackground(bg_brush_purple)        
-        self.tableWidget_tower_result.setHorizontalHeaderItem(8, item_wind_v50)
+        self.tableWidget_tower_result.setHorizontalHeaderItem(9, item_wind_v50)
 
         self.tableWidget_m1.setColumnCount(tower_count*2)
         self.tableWidget_m10.setColumnCount(tower_count*2)
         self.tableWidget_etm.setColumnCount(tower_count*2)            
         
-        filtered = self.db.filter(**filter_inputs)
-        filtered_wind = self.db.get_wind_info(filtered)
+        # filtered = self.db.filter(**filter_inputs)
+        # filtered_wind = self.db.get_wind_info(filtered)
 
+        combobox_value = self.get_combobox_current_value()
+        filter_inputs = {'机组名称': combobox_value['turbine'],
+                         '叶片名称': combobox_value['blade'],
+                         '塔架类型': combobox_value['hub'],
+                         combobox_value['custom_key']: combobox_value['custom_value']}
+        
+        tower_list = self.tower_sql.query('塔架编号', **filter_inputs)
+        filtered_wind = self.tower_sql.get_wind_info(tower_list)
+        
         self.wind_info = filtered_wind
         self.tower_info = available_tower
 
@@ -1077,10 +1263,20 @@ class Ui_MainWindow(object):
             # 塔架和风参，第一个tab
             item_id = QtWidgets.QTableWidgetItem()
             item_id.setText(tower_id)
-            if tower['highly_recommended']:
+            if tower['limit_tag'] == 'A':
                 item_id.setFont(QtGui.QFont('微软雅黑', 10, QtGui.QFont.Bold))
             item_id.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
             item_id.setBackground(bg_brush_purple)
+
+            item_load_proportion = QtWidgets.QTableWidgetItem()
+            item_load_proportion.setText(str(tower['load_porp']))
+            item_load_proportion.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
+            item_load_proportion.setBackground(bg_brush_blue)
+
+            item_limit_tag = QtWidgets.QTableWidgetItem()
+            item_limit_tag.setText(str(tower['limit_tag']))
+            item_limit_tag.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
+            item_limit_tag.setBackground(bg_brush_purple)
 
             item_weight = QtWidgets.QTableWidgetItem()
             item_weight.setText(str(tower['weight']))
@@ -1098,12 +1294,12 @@ class Ui_MainWindow(object):
             item_wind_vave.setBackground(bg_brush_blue)
 
             item_weibull_a = QtWidgets.QTableWidgetItem()
-            item_weibull_a.setText(str(filtered_wind[tower_id]['condition']['a'][tower_id]))
+            item_weibull_a.setText(str(round(filtered_wind[tower_id]['condition']['a'][tower_id], 2)))
             item_weibull_a.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
             item_weibull_a.setBackground(bg_brush_purple)
 
             item_weibull_k = QtWidgets.QTableWidgetItem()
-            item_weibull_k.setText(str(filtered_wind[tower_id]['condition']['k'][tower_id]))
+            item_weibull_k.setText(str(round(filtered_wind[tower_id]['condition']['k'][tower_id], 2)))
             item_weibull_k.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
             item_weibull_k.setBackground(bg_brush_blue)
 
@@ -1118,19 +1314,21 @@ class Ui_MainWindow(object):
             item_inflow.setBackground(bg_brush_blue)
 
             item_wind_v50 = QtWidgets.QTableWidgetItem()
-            item_wind_v50.setText(str(filtered_wind[tower_id]['condition']['v50'][tower_id]))
+            item_wind_v50.setText(str(round(filtered_wind[tower_id]['condition']['v50'][tower_id], 2)))
             item_wind_v50.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
             item_wind_v50.setBackground(bg_brush_purple)
 
             self.tableWidget_tower_result.setItem(i, 0, item_id)
-            self.tableWidget_tower_result.setItem(i, 1, item_weight)
-            self.tableWidget_tower_result.setItem(i, 2, item_air_density)
-            self.tableWidget_tower_result.setItem(i, 3, item_wind_vave)
-            self.tableWidget_tower_result.setItem(i, 4, item_weibull_a)
-            self.tableWidget_tower_result.setItem(i, 5, item_weibull_k)
-            self.tableWidget_tower_result.setItem(i, 6, item_wind_shear)
-            self.tableWidget_tower_result.setItem(i, 7, item_inflow)
-            self.tableWidget_tower_result.setItem(i, 8, item_wind_v50)
+            self.tableWidget_tower_result.setItem(i, 1, item_load_proportion)
+            self.tableWidget_tower_result.setItem(i, 2, item_limit_tag)
+            self.tableWidget_tower_result.setItem(i, 3, item_weight)
+            self.tableWidget_tower_result.setItem(i, 4, item_air_density)
+            self.tableWidget_tower_result.setItem(i, 5, item_wind_vave)
+            self.tableWidget_tower_result.setItem(i, 6, item_weibull_a)
+            self.tableWidget_tower_result.setItem(i, 7, item_weibull_k)
+            self.tableWidget_tower_result.setItem(i, 8, item_wind_shear)
+            self.tableWidget_tower_result.setItem(i, 9, item_inflow)
+            self.tableWidget_tower_result.setItem(i, 10, item_wind_v50)
 
             # 湍流表行表头
             self.tableWidget_m1.setHorizontalHeaderItem(2*i, QtWidgets.QTableWidgetItem('WindSpeed'))
@@ -1205,12 +1403,12 @@ class DBConfigDialog(QtWidgets.QDialog):
         window_icon.addPixmap(QtGui.QPixmap(os.path.join(IMG_PATH, "./config_act.png")), QtGui.QIcon.Normal,
                               QtGui.QIcon.Off)
         self.setWindowIcon(window_icon)
-        self.setFixedHeight(220)
+        self.setFixedHeight(240)
         self.setMaximumWidth(400)
 
         layout = QtWidgets.QVBoxLayout(self)
         self.grid_layout = QtWidgets.QGridLayout()
-        labels = ['数据库名称:', '', '主机:', '端口:', '用户:', '密码:']
+        labels = ['数据库名称:', '表名称:', '', '主机:', '端口:', '用户:', '密码:']
         try:
             with open('./config/config.json', 'r', encoding='utf-8') as f:
                 config = json.load(f)
@@ -1220,7 +1418,8 @@ class DBConfigDialog(QtWidgets.QDialog):
             auto_filling = config
             auto_filling[''] = ''
         else:
-            auto_filling = {'数据库名称:': '', '': '', '主机:': '', '端口:': '3306', '用户:': '', '密码:': ''}
+            auto_filling = {'数据库名称:': '', '表名称:': '', '主机:': '', '':'',
+                            '端口:': '3306', '用户:': '', '密码:': ''}
         for i, label in enumerate(labels):
             lbl = QtWidgets.QLabel(label)
             self.grid_layout.addWidget(lbl, i, 0)
@@ -1262,15 +1461,92 @@ class DBConfigDialog(QtWidgets.QDialog):
 
     def on_connect_btn_clicked(self):
         config = {'数据库名称:': self.grid_layout.itemAtPosition(0, 1).widget().text(),
-                  '主机:': self.grid_layout.itemAtPosition(2, 1).widget().text(),
-                  '端口:': self.grid_layout.itemAtPosition(3, 1).widget().text(),
-                  '用户:': self.grid_layout.itemAtPosition(4, 1).widget().text(),
-                  '密码:': self.grid_layout.itemAtPosition(5, 1).widget().text()}
+                  '表名称:': self.grid_layout.itemAtPosition(1, 1).widget().text(),
+                  '主机:': self.grid_layout.itemAtPosition(3, 1).widget().text(),
+                  '端口:': self.grid_layout.itemAtPosition(4, 1).widget().text(),
+                  '用户:': self.grid_layout.itemAtPosition(5, 1).widget().text(),
+                  '密码:': self.grid_layout.itemAtPosition(6, 1).widget().text()}
         self.func_mysql_connect(**config)
         if self.set_default_check.isChecked():
             with open('./config/config.json', 'w', encoding='UTF-8') as f:
                 json.dump(config, f)
         self.close()
+
+
+class UpdateDialog(QtWidgets.QDialog):
+    def __init__(self, host, version):
+        super().__init__()
+        self.host = host
+        self.current_version = version
+        self.label_img = QtWidgets.QLabel(self)
+        self.label_txt = QtWidgets.QLabel(self)
+        self.download_btn = QtWidgets.QPushButton('下载新版本', self)
+        self.cancel_btn = QtWidgets.QPushButton('取消', self)
+        self.ftp = MyFTP(self.host)
+        self.new_version_name = ''
+
+        self.ui_show()
+        self.update_checking()
+
+    def ui_show(self):
+        self.setWindowFlags(QtCore.Qt.WindowCloseButtonHint)
+        self.setWindowTitle('检查更新')
+        window_icon = QtGui.QIcon()
+        window_icon.addPixmap(QtGui.QPixmap(os.path.join(IMG_PATH, "./update.png")), QtGui.QIcon.Normal,
+                              QtGui.QIcon.Off)
+        self.setWindowIcon(window_icon)
+        self.setFixedHeight(240)
+        self.setFixedWidth(300)
+
+        group = QtWidgets.QGroupBox(self)
+        vlayout = QtWidgets.QVBoxLayout()
+        hlayout = QtWidgets.QHBoxLayout()
+        self.label_img.setStyleSheet("border-image:url('./res/img/find.png')")
+        self.label_img.setFixedHeight(60)
+        self.label_img.setFixedWidth(60)
+        hlayout.addWidget(self.label_img, alignment=QtCore.Qt.AlignCenter)
+
+        self.label_txt.setText('正在检查更新...')
+        vlayout.addLayout(hlayout)
+        vlayout.addWidget(self.label_txt, alignment=QtCore.Qt.AlignCenter)
+        group.setLayout(vlayout)
+        group.setStyleSheet('border: none')
+        group.resize(260, 100)
+        group.move(20, 40)
+
+        self.download_btn.setEnabled(False)
+        self.download_btn.resize(130, 25)
+        self.download_btn.move(15, 200)
+        self.cancel_btn.resize(130, 25)
+        self.cancel_btn.move(155, 200)
+
+        self.download_btn.clicked.connect(self.on_download_btn_clicked)
+        self.cancel_btn.clicked.connect(self.canceled)
+
+        self.show()
+
+    def update_checking(self):
+        check_result = self.ftp.check_update(self.current_version)
+        if check_result[0]:
+            self.new_version_name = check_result[1]
+            new_version_no = self.new_version_name[11:]
+            self.label_img.setStyleSheet("border-image:url('./res/img/file.png')")
+            self.label_txt.setText(f'可更新至{new_version_no}版')
+            self.download_btn.setEnabled(True)
+        else:
+            self.label_img.setStyleSheet("border-image:url('./res/img/warning.png')")
+            self.label_txt.setText(check_result[1])
+
+    def canceled(self):
+        self.close()
+
+    def on_download_btn_clicked(self):
+        save_file = QFileDialog.getSaveFileName(None, '保存文件', self.new_version_name, 'Zip File (*zip)')
+        local_file_path = save_file[0] + '.zip'
+        remote_file_path = os.path.join('/', self.new_version_name, self.new_version_name + '.zip')
+        self.ftp.download(local_file_path, remote_file_path)
+        self.close()
+
 
 class ContactDialog(QtWidgets.QDialog):
     def __init__(self):
@@ -1281,6 +1557,10 @@ class ContactDialog(QtWidgets.QDialog):
     def ui_show(self):
         self.setWindowFlags(QtCore.Qt.WindowCloseButtonHint)
         self.setWindowTitle('获得帮助')
+        icon_contact = QtGui.QIcon()
+        icon_contact.addPixmap(QtGui.QPixmap(os.path.join(IMG_PATH, "./help.png")),
+                               QtGui.QIcon.Normal, QtGui.QIcon.Off)
+        self.setWindowIcon(icon_contact)
         self.resize(320, 260)
         label1 = QtWidgets.QLabel(self)
         label1.setText("软件使用过程中有任何疑问，请联系以下人员：")
@@ -1316,8 +1596,9 @@ class ContactDialog(QtWidgets.QDialog):
         self.show()
 
 
-class AbortDialog(QtWidgets.QDialog):
-    def __init__(self):
+class aboutDialog(QtWidgets.QDialog):
+    def __init__(self, version):
+        self.version = version
         super().__init__()
 
         self.ui_show()
@@ -1325,6 +1606,10 @@ class AbortDialog(QtWidgets.QDialog):
     def ui_show(self):
         self.setWindowFlags(QtCore.Qt.WindowCloseButtonHint)
         self.setWindowTitle('关于')
+        icon_about = QtGui.QIcon()
+        icon_about.addPixmap(QtGui.QPixmap(os.path.join(IMG_PATH, "./about.png")), QtGui.QIcon.Normal,
+                             QtGui.QIcon.Off)
+        self.setWindowIcon(icon_about)
         self.resize(320, 260)
 
         label1 = QtWidgets.QLabel(self)
@@ -1338,9 +1623,9 @@ class AbortDialog(QtWidgets.QDialog):
         label2.setStyleSheet("color: blue")
 
         label3 = QtWidgets.QLabel(self)
-        label3.setText('Version: 1.0')
+        label3.setText(f'Version: {self.version}')
         label4 = QtWidgets.QLabel(self)
-        label4.setText('Data: 2019-06-24 17:20:02')
+        label4.setText('Data: 2019-08-14 09:20:56')
         label5 = QtWidgets.QLabel(self)
         label5.setText('OS: Windows 10')
 
@@ -1369,4 +1654,27 @@ class AbortDialog(QtWidgets.QDialog):
         self.setLayout(layout)
 
         self.show()
+
+
+class MyLineEdit(QtWidgets.QLineEdit):
+    def __init__(self, *args, **kw):
+        super(MyLineEdit, self).__init__(*args)
+        self.setAcceptDrops(True)
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            super(MyLineEdit, self).dragEnterEvent(event)
+
+    def dragMoveEvent(self, event):
+        super(MyLineEdit, self).dragMoveEvent(event)
+
+    def dropEvent(self, event):
+        if event.mimeData().hasUrls():
+            for url in event.mimeData().urls():
+                self.setText(url.toLocalFile())
+            event.acceptProposedAction()
+        else:
+            super(MyLineEdit, self).dropEvent(event)
 

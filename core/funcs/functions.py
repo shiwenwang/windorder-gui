@@ -8,67 +8,57 @@ Main run
 from functools import partial
 from collections import OrderedDict
 from ..models import WindParse
-from ..models import CalcRatedWindSpeed
 from ..models import CalcLoad
 from ..models import TiInterp
-from ..models import TowerDataBase
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import json
 import os
-import re
+
 
 THIS_DIR = os.path.dirname(__file__)
-REF_WIND = dict()
 
-def find_available_tower(wind_path, turbine_type, db_data={}, sorted_by_weight=True, loads = {}):
-    global REF_WIND
+def find_available_tower(wind_path, ref_wind, sorted_by_weight=True, loads = {}):
     if loads:
         loads = loads
     else:
-        loads = calc_loads(wind_path, turbine_type, db_data, turbine_or_wind='turbine')
+        loads = calc_loads(wind_path, ref_wind)
     sorted_loads_ul = loads['ul'].sort_values(ascending=False)
     sorted_loads_fl = loads['fl'].sort_values(ascending=False)
 
-    available_tower_fl = OrderedDict()
-    for label in sorted_loads_fl.index:
-        if label not in REF_WIND.keys():
-            break
-        else:
-            available_tower_fl[label] = REF_WIND[label]['tower_weight']
+    # 疲劳推荐
+    fl_index_site = [lbl for lbl in sorted_loads_fl.index if lbl not in ref_wind.keys()]
+    fl_index_tower = [lbl for lbl in sorted_loads_fl.index if lbl in ref_wind.keys()]
 
-    available_tower_ul = OrderedDict()
-    for label in sorted_loads_ul.index:
-        if label not in REF_WIND.keys():
-            sit_max_lable = label            
-            break
-        else:
-            highly_recommended = True if label in available_tower_fl else False
-            available_tower_ul[label] = {'weight': REF_WIND[label]['tower_weight'],
-                                         'highly_recommended': highly_recommended,
-                                         'load_attr': sorted_loads_fl[label]}
-#    if not available_tower_ul:
-#        index = sorted_loads_ul.index
-#        try:
-#            max_lbl = [index[i] for i, d in enumerate(sorted_loads_ul.values) if abs(d-1.0)<1e-4 and index[i] in REF_WIND.keys()][0]
-#            available_tower_ul[max_lbl] = REF_WIND[max_lbl]['tower_weight']
-#        except IndexError:
-#            pass
+    site_max_fl = sorted_loads_fl.at[fl_index_site[0]]
+
+    available_tower_fl = {tower_id: 
+                         {'weight': ref_wind[tower_id]['tower_weight'],
+                         'limit_tag': 'F',
+                         'load_porp': round(sorted_loads_fl.at[tower_id] / np.max(sorted_loads_fl.values), 3)}
+                         for tower_id in fl_index_tower
+                         if sorted_loads_fl.at[tower_id] > 0.98 * site_max_fl}
+
+    # 极限推荐
+    ul_index_site = [lbl for lbl in sorted_loads_ul.index if lbl not in ref_wind.keys()]
+    ul_index_tower = [lbl for lbl in sorted_loads_ul.index if lbl in ref_wind.keys()]
+
+    site_max_ul = sorted_loads_ul.at[ul_index_site[0]]
     
-    # # 查找遗漏的参考塔架
-    # try:
-    #     reset_tower = [lbl for lbl in sorted_loads_ul.index if lbl in REF_WIND.keys() 
-    #                and abs(sorted_loads_ul[lbl] - sorted_loads_ul[sit_max_lable]) < 0.0008][0]
-    #     available_tower_ul[reset_tower] = REF_WIND[reset_tower]['tower_weight']
-    # except IndexError:
-    #     pass
-           
+    tag = {label: 'A' if label in available_tower_fl.keys() else 'U' for label in ul_index_tower}
+    available_tower_ul = {tower_id: 
+                         {'weight': ref_wind[tower_id]['tower_weight'],
+                         'limit_tag': tag[tower_id],
+                         'load_porp': round(sorted_loads_ul.at[tower_id] / np.max(sorted_loads_ul.values), 3)}
+                         for tower_id in ul_index_tower
+                         if sorted_loads_ul.at[tower_id] > 0.98 * site_max_ul}
+    # 合并
     available_tower = available_tower_ul
+    available_tower.update({k: v for k, v in available_tower_fl.items() if k not in available_tower_ul.keys()})
     if sorted_by_weight:
-        available_tower = sorted(available_tower.items(), key=lambda x:x[1])
-        # available_tower = {kv[0]: kv[1] for kv in available_tower_list}
+        available_tower = sorted(available_tower.items(), key=lambda x:x[1]['weight'])
     
     return available_tower
 
@@ -86,68 +76,38 @@ def main_run(wind_path, ref_wind):
     custom_wind_name = os.path.splitext(os.path.split(wind_path)[-1])[0]
 
     loads = calc_loads(wind_path, ref_wind)
-    ultimate_load = loads['ul']
-    fatigue_load = loads['fl']
 
-    global THIS_DIR, REF_WIND
+    global THIS_DIR
     color_path = os.path.abspath(os.path.join(THIS_DIR, '../../files/color/color.json'))
 
     with open(color_path, 'r') as f:
         colors = json.load(f)
     color_list = list(colors.values())
 
-    # plt.close()
-    # fig = plt.figure(figsize=(9, 5))
-    bar_plot = partial(draw, ref_wind=REF_WIND, wind_name=custom_wind_name, color_list=color_list)
-    # bar_plot(fig, ultimate_load, 211)
-    # bar_plot(fig, fatigue_load, 212)
-    # plt.tight_layout()
-    # fig.suptitle(custom_wind_name, y=1, fontsize=14, weight='bold')
-    # plt.show()
-    return bar_plot, loads
+    bar_plot = partial(draw, ref_wind=ref_wind, wind_name=custom_wind_name, color_list=color_list)
 
-    return 
+    return {'bar_plot': bar_plot, 'loads': loads}
 
-
-
-def calc_loads(wind_path, ref_turbine_or_wind, 
-               db_data={}, turbine_or_wind='wind', save_loads=False):
+def calc_loads(wind_path, ref_wind):
     """
     Calculate loads(U,F) according to wind resource parameter and regressor
     
     db_data = {} 时，重新在路径下读取json
     db_data有数据时，这里不需要读json
-
-    ref_turbine_or_wind： 可以是机组信息的字典， 也可以是根据塔架确定的风参信息
     
     """
-    global THIS_DIR, REF_WIND
-
-    if turbine_or_wind == 'turbine':
-        db_folder = os.path.abspath(os.path.join(THIS_DIR, '../../files/Tower_Database/'))
-        json_files = os.listdir(db_folder)
-        db = TowerDataBase(db_data)
-        if db_data:
-            db.update(mode='a')
-        else:
-            for f in json_files:
-                full_path = os.path.join(db_folder, f)
-                db.update(full_path, mode='a')
-
-        result = db.filter(**ref_turbine_or_wind)
-        REF_WIND = db.get_wind_info(result)
-    else:
-        REF_WIND = ref_turbine_or_wind
-    
+    # from time import time
+    # start = time()
     """ wind_parse model """
     wind = WindParse(path=wind_path)
     wind.run()
     wind_outputs = wind.pop()
+    # end = time()
+    # print(f"读取风参文件耗时：{end - start}s")
 
-    # from time import time
-    # start = time()
     wind_cluster = {'farm': wind_outputs}
-    tower_loads_json_file = os.path.abspath(os.path.join(THIS_DIR, '../../files/Loads/tower_loads.json'))
+    # tower_loads_mysql.json 用于存放计算过的塔架的载荷值
+    tower_loads_json_file = os.path.abspath(os.path.join(THIS_DIR, '../../files/Loads/tower_loads_mysql.json'))
     if not os.path.isfile(tower_loads_json_file):
         with open(tower_loads_json_file, 'w') as f:
             json.dump({'ul': {}, 'fl': {}}, f)
@@ -155,16 +115,21 @@ def calc_loads(wind_path, ref_turbine_or_wind,
         data = json.load(f)
 
     saved_tower = []
-    for tower_id, wind in REF_WIND.items():
+    for tower_id, wind in ref_wind.items():
         if tower_id in data['ul'].keys():
             saved_tower.append(tower_id)
         else:
-            wind_cluster.update({tower_id: wind})        
+            wind_cluster.update({tower_id: wind})
 
+    # from time import time
+    # start = time()
     ''' turbulence intensity interpolation '''    
     ti_interp = TiInterp(**wind_cluster)
     ti_interp.run()
+    # end = time()
+    # print(f"湍流插值耗时：{end - start}s")
 
+    # start = time()
     ''' calculate load '''
     cl_inputs = OrderedDict(wind=wind_cluster, ti=ti_interp.pop())
     cl = CalcLoad(**cl_inputs)
@@ -172,25 +137,32 @@ def calc_loads(wind_path, ref_turbine_or_wind,
     loads = cl.pop()
     ultimate_load = loads['ul']
     fatigue_load = loads['fl']
+    # end = time()
+    # print(f"计算载荷耗时：{end - start}s")
 
     # 追加已经存档的载荷
     saved_loads_ul = {k: v for k, v in data['ul'].items() if k in saved_tower}
     saved_loads_fl = {k: v for k, v in data['fl'].items() if k in saved_tower}
     ultimate_load = ultimate_load.append(pd.Series(saved_loads_ul))
     fatigue_load = fatigue_load.append(pd.Series(saved_loads_fl))
+    # print(ultimate_load)
+    # print(fatigue_load)
 
-    merged_loads = {}
-    merged_loads['ul'] = ultimate_load / max(ultimate_load)
-    merged_loads['fl'] = fatigue_load / max(fatigue_load)
-    # end = time()
-    # print(end-start)
+    merged_loads = {'ul': ultimate_load, 'fl': fatigue_load}
 
-    if save_loads:
-        save_path = os.path.abspath(os.path.join(THIS_DIR, '../../files/Loads/loads.xlsx'))
-        with pd.ExcelWriter(save_path) as writer:
-            ultimate_load.to_excel(writer, sheet_name='Ultimate Load')
-            fatigue_load.to_excel(writer, sheet_name='Fatigue Load')
-    
+    # 将新计算的塔架载荷存档, 覆盖旧值
+    new_items_generated = False
+    for label in ultimate_load.index:
+        if label in ref_wind.keys():
+            if not new_items_generated:
+                new_items_generated = True
+            data['ul'][label] = ultimate_load.at[label]
+            data['fl'][label] = fatigue_load.at[label]
+
+    if new_items_generated:
+        with open(tower_loads_json_file, 'w') as f:
+            json.dump(data, f)
+
     return merged_loads
 
 
@@ -212,16 +184,17 @@ def draw(fig, load, sub, ref_wind, wind_name, color_list):
     load_sorted = load.sort_values(ascending=False)
 
     x_label, values, color_show, legend_handles = bar_config(load_sorted, ref_wind, wind_name, color_list)
+    fake_values = values / np.max(values)
 
-    if len(x_label) < 10:
-        plt.bar(x_label, values, color=color_show, width=0.3)
+    if len(x_label) < 5:
+        plt.bar(x_label, fake_values, color=color_show, width=0.3)
     else:
-        plt.bar(x_label, values, color=color_show)
+        plt.bar(x_label, fake_values, color=color_show)
 
     y_label = {211: 'Ultimate_load', 212: 'Fatigue_load'}
     plt.ylabel(y_label[sub])
 
-    y_ticks_min = max(round(min(values), 2) - 0.2, 0)
+    y_ticks_min = max(round(min(fake_values), 2) - 0.2, 0)
     y_ticks_max = 1.5
     plt.ylim(y_ticks_min, y_ticks_max)
     plt.yticks(np.arange(y_ticks_min, y_ticks_max, 0.2), fontsize=8)
@@ -229,11 +202,20 @@ def draw(fig, load, sub, ref_wind, wind_name, color_list):
     plt.legend(handles=legend_handles, ncol=6, fontsize='xx-small') #len(ref_labels) + 1
     # mode="expand"（平铺， 默认向右靠拢）  loc='upper right' (默认),
 
-    if len(x_label) > 5:
+    if len(x_label) > 10:
         plt.xticks(rotation=45, horizontalalignment='right', size=6)
-    for a, b in zip(x_label, values):
-        plt.text(a, b + 0.005, '%.3f' % b, ha='center', va='bottom', fontsize=6)
-
+    if len(x_label) < 40:
+        for a, b in zip(x_label, fake_values):
+            plt.text(a, b + 0.005, '%.3f' % b, ha='center', va='bottom',
+                     fontsize=6)
+    elif len(x_label) < 60:
+        for a, b in zip(x_label, fake_values):
+            plt.text(a, b + 0.005, '%.3f' % b, ha='center', va='bottom',
+                     fontsize=6, rotation=30, horizontalalignment='center')
+    else:
+        for a, b in zip(x_label, fake_values):
+            plt.text(a, b + 0.01, '%.3f' % b, ha='center', va='bottom',
+                     fontsize=6, rotation=90, horizontalalignment='center')
 
 def bar_config(load_sorted, ref_Wind, wind_name, color_list):
     """

@@ -20,17 +20,14 @@ class CalcRatedWindSpeed(Base):
         :return rated_wind_speed
         """
         wind_condition = self._inputs['wind_condition'][['θmean', 'α', 'ρ']]
-        # wind_condition = wind_condition.drop('Ve50', axis=1)
-        wind_condition.columns = ['inflow_angle', 'wind_shear', 'air_density']
+        wind_condition.insert(0, 'const', [1] * len(wind_condition.index))
         regressor = {'const': 14.54212663, 'inflow_angle': 0.031650249,
                      'wind_shear': 0.230199432, 'air_density': -3.999156118}
 
         dict_rated_wind_speed = {}
         for turbine_id in wind_condition.index:
-            turbine_wind_condition = wind_condition.loc[turbine_id]
-            dict_rated_wind_speed[turbine_id] = sum(
-                [float(turbine_wind_condition[var]) * float(regressor[var]) for var in wind_condition.columns]) \
-                                                + regressor['const']
+            wind_params = wind_condition.loc[turbine_id]
+            dict_rated_wind_speed[turbine_id] = wind_params.dot(np.array(list(regressor.values())))
 
         self._outputs = dict_rated_wind_speed
 
