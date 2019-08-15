@@ -1,7 +1,8 @@
 from ftplib import FTP, error_perm
 import socket
 import re
-
+import os
+import subprocess
 
 class MyFTP:
     def __init__(self, host, port=21, user='', passwd=''):
@@ -11,24 +12,36 @@ class MyFTP:
         self.passwd = passwd
 
     def connect(self):
-        try:
-            with FTP(self.host) as ftp:
-                ftp.login()
-        except (error_perm, socket.gaierror, TimeoutError) as e:
-            return False, e
+        test_result = self.ip_ping_test()
+        if test_result:
+            return False, TimeoutError
+        else:
+            try:
+                with FTP(self.host) as ftp:
+                    ftp.login()
+            except (error_perm, socket.gaierror, TimeoutError) as e:
+                return False, e
 
-        return True
+            return True, 
+
+    def ip_ping_test(self):
+        ret = subprocess.Popen(f"ping -n 1 -w 1 {self.host}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        ret = [i.decode("gbk") for i in ret.communicate()]
+        pattern = re.compile(r'丢失 = (\d) ')
+        m = pattern.search(ret[0])
+        
+        return int(m.groups()[0])
 
     def check_update(self, current_version):
-        pattern = re.compile(r'([0-9]+\.[0-9]+)')
-        current_version_no = float(pattern.search(current_version).group(0))
+        pattern = re.compile(r'(\d+\.\d+)')
+        current_version_no = float(pattern.search(current_version).groups()[0])
         connect = self.connect()
         if connect[0]:
             with FTP(self.host) as ftp:
                 ftp.login()
                 ftp.cwd('/')
                 dir_list = ftp.nlst()
-                latest_version_no = float(pattern.search(dir_list[-1]).group(0))
+                latest_version_no = float(pattern.search(dir_list[-1]).groups()[0])
                 new_release_name = dir_list[-1]
                 if latest_version_no > current_version_no:
                     return True, new_release_name
@@ -53,8 +66,18 @@ class MyFTP:
 
 if __name__ == "__main__":
     import os
-    ftp = MyFTP('10.11.52.185')
-    result = ftp.check_update('1.1')
+    ftp = MyFTP('192.168.199.249')
+    result = ftp.check_update('1.0')
     if result[0]:
-        ftp.download('D://1.zip', os.path.join('/', result[1], result[1]+'.zip'))
-    pass
+        ftp.download('D://1.7z', os.path.join('/', result[1], result[1]+'.7z'))
+    else:
+        print('连接失败')
+
+    # import subprocess
+    # import re
+    # ret = subprocess.Popen(f"ping -n 1 -w 1 10.11.52.185", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    # # out = p.stdout.read()
+    # print([i.decode("gbk") for i in ret.communicate()])
+    # # regex = re.compile("Minimum = (\d+)ms, Maximum = (\d+)ms, Average = (\d+)ms", re.IGNORECASE)
+    # # print(regex.findall(out))
+    # # 192.168.199.249

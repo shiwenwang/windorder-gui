@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import QFileDialog, QMessageBox
 from functools import partial
 import os
 import sys
-# from time import time
+import time
 
 THIS_DIR = os.path.dirname(__file__)
 sys.path.append(os.path.abspath(os.path.join(THIS_DIR, '..')))
@@ -26,7 +26,6 @@ IMG_PATH = os.path.abspath(os.path.join(THIS_DIR, './res/img/'))
 
 class Ui_MainWindow(object):
     def __init__(self):
-        self.ftp_host = '10.11.52.185'
         self.version = '1.1Beta'
         self.tower_sql = MySQLDataBase()
         self.loads = {}
@@ -649,10 +648,10 @@ class Ui_MainWindow(object):
         self.connect()
         # self.read_json()
         self.comboBox_init()
-        self.statusBar.showMessage('就绪, 已连接至数据库.')
 
     def comboBox_init(self):
-        if self.tower_sql.db.is_connected() and self.tower_sql.db.database:
+        connect_result = self.tower_sql.connect()
+        if connect_result[0]:
             self.turbine_list = list_upper([''] + sorted(self.tower_sql.query('机组名称')))
             self.blade_list = list_upper([''] + sorted(self.tower_sql.query('叶片名称')))
             self.hubheight_list = list_upper([''] + sorted(self.tower_sql.query('塔架类型')))
@@ -662,7 +661,8 @@ class Ui_MainWindow(object):
             self.comboBox_custom_key.addItems(self.custom_key_list)
             custom_key = self.comboBox_custom_key.currentText()
             self.comboBox_custom_value.addItems(self.custom_value_dict[custom_key])
-        else:
+        else:            
+            self.statusBar.showMessage(connect_result[1])
             self.turbine_list = []
             self.blade_list = []
             self.hubheight_list = []
@@ -757,13 +757,16 @@ class Ui_MainWindow(object):
         about_dialog.exec()
 
     def update(self):
-        update_dialog = UpdateDialog(self.ftp_host, self.version)
+        with open('./config/ftp.json', 'r', encoding='utf-8') as f:
+            ftp_ = json.load(f)
+        self.statusBar.showMessage(f"ftp_host: {ftp_['host']}", 2)
+        update_dialog = UpdateDialog(ftp_['host'], self.version)
         update_dialog.exec()
 
     def mysql_connect(self, **kwargs):
         if kwargs:
             self.tower_sql.set_config(kwargs)
-            msg = self.tower_sql.connect()
+            state, msg = self.tower_sql.connect()
             self.statusBar.showMessage(msg, -1)
         else:
             self.statusBar.showMessage("数据库无法连接，请重新配置！", -1)
@@ -1088,7 +1091,7 @@ class Ui_MainWindow(object):
         self.statusBar.showMessage('计算中...')
         wind_path = self.lineEdit_farm.text()
         if wind_path:
-            if self.tower_sql.db.is_connected() and self.tower_sql.db.database:
+            if self.tower_sql.db.is_connected() and self.tower_sql.table_name:
                 if self.groupBox_ref_path.isChecked():
                     this_dir = os.path.dirname(__file__)
                     ref_path = []
@@ -1117,12 +1120,23 @@ class Ui_MainWindow(object):
 
                     self.statusBar.showMessage('计算完成')
             else:
-                msg = QMessageBox()
-                msg.setWindowTitle("警告")
-                msg.setIcon(QMessageBox.Warning)
-                msg.setText("数据库未连接！")
-                msg.exec()
-                self.statusBar.clearMessage()
+                if self.groupBox_ref_path.isChecked():
+                    this_dir = os.path.dirname(__file__)
+                    ref_path = []
+                    if self.lineEdit_ref_std.text():
+                        ref_path.append(self.lineEdit_ref_std.text())
+                    if self.lineEdit_ref_cz.text():
+                        ref_path.append(self.lineEdit_ref_cz.text())
+                    wind_cmp.main_run(this_dir, wind_path, ref_path)
+                else:                    
+                    res = main_run(wind_path, {})                    
+                    self.loads = res['loads'] if self.all_selected_when_sort else {}
+
+                    plot_widget = PlotWidget(res)
+                    plot_widget.plot()
+                    plot_widget.show()
+
+                    self.statusBar.showMessage('计算完成')
         else:
             msg = QMessageBox()
             msg.setWindowTitle("警告")
@@ -1136,7 +1150,7 @@ class Ui_MainWindow(object):
         self.statusBar.showMessage('计算中...')
         wind_path = self.lineEdit_farm.text()
         if wind_path:
-            if self.tower_sql.db.is_connected() and self.tower_sql.db.database:
+            if self.tower_sql.db.is_connected() and self.tower_sql.table_name:
                 combobox_value = self.get_combobox_current_value()
                 filter_inputs = {'机组名称': combobox_value['turbine'],
                                  '叶片名称': combobox_value['blade'],
@@ -1613,7 +1627,7 @@ class aboutDialog(QtWidgets.QDialog):
         self.resize(320, 260)
 
         label1 = QtWidgets.QLabel(self)
-        label1.setStyleSheet("border-image:url('./res/img/排名.png')")
+        label1.setStyleSheet("border-image:url('./res/img/sort_ico.png')")
         label1.setFixedHeight(45)
         label1.setFixedWidth(45)
 
@@ -1627,7 +1641,7 @@ class aboutDialog(QtWidgets.QDialog):
         label4 = QtWidgets.QLabel(self)
         label4.setText('Data: 2019-08-14 09:20:56')
         label5 = QtWidgets.QLabel(self)
-        label5.setText('OS: Windows 10')
+        label5.setText('OS: Windows-10-10.0.18362-SP0')
 
         layout1 = QtWidgets.QVBoxLayout()
         spacer_top = QtWidgets.QSpacerItem(20, 20)

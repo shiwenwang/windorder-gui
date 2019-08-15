@@ -4,15 +4,20 @@ from functools import partial
 import pandas as pd
 import numpy as np
 from math import gamma, exp, log
+import os
+import json
 
+THIS_DIR = os.path.dirname(__file__)
 
 class MySQLDataBase(object):
     def __init__(self, **kwargs):
         if kwargs:
             self.set_config(kwargs)
-            self.table_name = kwargs['表名称:']
         else:
-            self.config = {}
+            config_path = os.path.abspath(os.path.join(THIS_DIR, '../../config/config.json'))
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config_ = json.load(f)
+            self.set_config(config_)
         self.db = connector.MySQLConnection()
 
     def set_config(self, kwargs):
@@ -21,7 +26,6 @@ class MySQLDataBase(object):
                        'user': kwargs['用户:'],
                        'password': kwargs['密码:'],
                        'database': kwargs['数据库名称:']}
-        self.table_name = kwargs['表名称:']
 
     def connect(self):
         """
@@ -30,14 +34,26 @@ class MySQLDataBase(object):
         """
         try:
             self.db = connector.MySQLConnection(**self.config)
+            cursor = self.db.cursor()
+            cursor.execute(f"SHOW TABLES")
+            result = cursor.fetchall()
+            cursor.close()
+            if result:
+                self.table_name = result[0][0]
+            else:
+                self.table_name = ''
+                msg = f"{self.config['database']}数据库无数据表, 请重新配置"
+                return False, msg
         except (ProgrammingError, InterfaceError) as e:
             msg = f'数据库连接失败({e.msg})'
-            return msg
-        if self.db.database:
-            msg = '数据库已连接'
-        else:
-            msg = '数据库地址已找到, 需指定数据库名称'
-        return msg
+            return False, msg
+        
+        return True, '数据已连接'
+        # if self.db.database:
+        #     msg = '数据库已连接'
+        # else:
+        #     msg = '数据库地址已找到, 需指定数据库名称'
+        # return False, msg
 
     def get_column_name(self):
         cursor = self.db.cursor()
