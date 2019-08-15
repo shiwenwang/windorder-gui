@@ -48,7 +48,7 @@ class MySQLDataBase(object):
             msg = f'数据库连接失败({e.msg})'
             return False, msg
         
-        return True, '数据已连接'
+        return True, '数据库已连接'
         # if self.db.database:
         #     msg = '数据库已连接'
         # else:
@@ -110,7 +110,7 @@ class MySQLDataBase(object):
         valid_filter = {k: v for k, v in filter_.items() if v and k in column_name}
         valid_item = tuple([i for i in item if i in column_name])
 
-        if len(valid_item) < 1 or not valid_filter:
+        if len(valid_item) < 1:
             return []
 
         mysql_select_sentence = self.__query_sentence(*valid_item, **valid_filter)
@@ -127,7 +127,8 @@ class MySQLDataBase(object):
             return {}
 
         key_words = ', '.join(['塔架编号', '空气密度', '年平均风速', '入流角', '风剪切', 'V50', '威布尔分布A值',
-                           '威布尔分布K值', '塔架主体重量', '风速带', 'm为1湍流带', 'm为10湍流带', 'm为ETM湍流带'])
+                               '威布尔分布K值', '塔架主体重量', '风速带', 'm为1湍流带', 'm为10湍流带', 'm为ETM湍流带',
+                               '受限情况'])
         if len(tower_list) > 1:
             mysql_sentence = f"SELECT {key_words} from {self.table_name} where 塔架编号 in {tuple(tower_list)}"
         else:
@@ -142,7 +143,7 @@ class MySQLDataBase(object):
 
         for item in query_result:
             tower_id, air_density, vave, inflow_angle, wind_shear, v50, weibull_a, weibull_k, tower_weight, \
-            wind_speed, m1, m10, etm = item
+            wind_speed, m1, m10, etm, tower_limit = item
             air_density = float(air_density) if self.within(air_density, 0, 2) else 1.225
             vave = float(vave) if vave else 6.0
             inflow_angle = float(inflow_angle) if self.within(inflow_angle, -20, 20) else 0
@@ -151,6 +152,7 @@ class MySQLDataBase(object):
             tower_weight = tower_weight if self.within(tower_weight, 0, 1000) else 0
             weibull_k = float(weibull_k) if self.within(weibull_k, 0, 10) else 2
             weibull_a = float(weibull_a) if self.within(weibull_a, 0, 20) else vave / exp(log(gamma(1 + 1 / weibull_k)))
+            tower_limit = tower_limit if tower_limit else ''
 
             # 过滤风速带和湍流带中的空数据和单个值
             wind_speed = [float(s) for s in wind_speed.split()] \
@@ -173,9 +175,12 @@ class MySQLDataBase(object):
             ti_m10 = pd.DataFrame({'Wind Speed': wind_speed, tower_id: m10})
             ti_etm = pd.DataFrame({'Wind Speed': wind_speed, tower_id: etm})
 
+            tower_limit_map = {'极限受限': 'U', '疲劳受限': 'F', '疲劳受限和极限受限': 'A', '频率受限': 'T', '': ''}
+
             wind_params = {'condition': condition, 'm1': ti_m1,
                            'm10': ti_m10, 'etm': ti_etm, 'tower_weight': float(tower_weight),
-                           'label': [f'{tower_id[6:]}-{tower_weight}t']}
+                           'label': [f'{tower_id[6:]}-{tower_weight}t-{tower_limit_map[tower_limit]}'],
+                           'tower_limit': tower_limit_map[tower_limit]}
 
             wind_info[tower_id] = wind_params
 

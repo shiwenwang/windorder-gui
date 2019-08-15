@@ -16,8 +16,8 @@ import time
 
 THIS_DIR = os.path.dirname(__file__)
 sys.path.append(os.path.abspath(os.path.join(THIS_DIR, '..')))
-from core import TowerDataBase, main_run, find_available_tower, MySQLDataBase, MyFTP
-import wind_cmp
+from core import TowerDataBase, main_run, find_available_tower, compare, MySQLDataBase, MyFTP
+# import wind_cmp, windorder
 from gui.ui_widget import *
 import json
 
@@ -115,7 +115,7 @@ class Ui_MainWindow(object):
         self.label_ref_std.setFont(font)
         self.label_ref_std.setObjectName("label_ref_std")
         self.horizontalLayout_std.addWidget(self.label_ref_std)
-        self.lineEdit_ref_std = QtWidgets.QLineEdit(self.groupBox_ref_path)
+        self.lineEdit_ref_std = MyLineEdit(self.groupBox_ref_path)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
@@ -143,7 +143,7 @@ class Ui_MainWindow(object):
         self.label_ref_cz.setFont(font)
         self.label_ref_cz.setObjectName("label_ref_cz")
         self.horizontalLayout_cz.addWidget(self.label_ref_cz)
-        self.lineEdit_ref_cz = QtWidgets.QLineEdit(self.groupBox_ref_path)
+        self.lineEdit_ref_cz = MyLineEdit(self.groupBox_ref_path)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
@@ -640,37 +640,43 @@ class Ui_MainWindow(object):
                 config = json.load(f)
         except (FileNotFoundError, JSONDecodeError) as e:
             config = {}
-        self.mysql_connect(**config)
+        state, msg = self.mysql_connect(**config)
 
         self.groupBox_ref_path.setChecked(False)
         self.groupBox_turbine_lib.setChecked(True)
         self.listWidget_towers_list.clear()
         self.connect()
         # self.read_json()
-        self.comboBox_init()
+        self.comboBox_init(state, msg)
 
-    def comboBox_init(self):
-        connect_result = self.tower_sql.connect()
-        if connect_result[0]:
+    def comboBox_init(self, state, msg):
+        if state:
             self.turbine_list = list_upper([''] + sorted(self.tower_sql.query('机组名称')))
             self.blade_list = list_upper([''] + sorted(self.tower_sql.query('叶片名称')))
             self.hubheight_list = list_upper([''] + sorted(self.tower_sql.query('塔架类型')))
             self.custom_key_list = ['自定义项', '塔架段数', '塔架直径', '基础类型', '箱变位置', '归档分类']
             self.custom_value_dict = {k: list_upper([''] + sorted(self.tower_sql.query(k)))
                                       for k in self.custom_key_list}
+            self.comboBox_custom_key.clear()
+            self.comboBox_custom_value.clear()                            
             self.comboBox_custom_key.addItems(self.custom_key_list)
             custom_key = self.comboBox_custom_key.currentText()
             self.comboBox_custom_value.addItems(self.custom_value_dict[custom_key])
         else:            
-            self.statusBar.showMessage(connect_result[1])
+            self.statusBar.showMessage(msg, -1)
             self.turbine_list = []
             self.blade_list = []
             self.hubheight_list = []
             self.custom_key_list = []
             self.custom_value_list = []
+            self.comboBox_custom_key.clear()
+            self.comboBox_custom_value.clear()
             self.comboBox_custom_key.addItems(self.custom_key_list)
             self.comboBox_custom_value.addItems(self.custom_value_list)
 
+        self.comboBox_turbine.clear()
+        self.comboBox_blade.clear()
+        self.comboBox_hubheight.clear()
         self.comboBox_turbine.addItems(self.turbine_list)
         self.comboBox_blade.addItems(self.blade_list)
         self.comboBox_hubheight.addItems(self.hubheight_list)
@@ -767,9 +773,13 @@ class Ui_MainWindow(object):
         if kwargs:
             self.tower_sql.set_config(kwargs)
             state, msg = self.tower_sql.connect()
-            self.statusBar.showMessage(msg, -1)
+
         else:
-            self.statusBar.showMessage("数据库无法连接，请重新配置！", -1)
+            state, msg = False, "数据库无法连接，请重新配置！"     
+
+        self.comboBox_init(state, msg)
+        self.statusBar.showMessage(msg, -1)
+        return state, msg
 
     def on_action_db_connect_triggered(self):
         config = {}
@@ -1093,13 +1103,18 @@ class Ui_MainWindow(object):
         if wind_path:
             if self.tower_sql.db.is_connected() and self.tower_sql.table_name:
                 if self.groupBox_ref_path.isChecked():
+                    path_list = []
+                    path_list.append((wind_path))
                     this_dir = os.path.dirname(__file__)
-                    ref_path = []
                     if self.lineEdit_ref_std.text():
-                        ref_path.append(self.lineEdit_ref_std.text())
+                        path_list.append(self.lineEdit_ref_std.text())
                     if self.lineEdit_ref_cz.text():
-                        ref_path.append(self.lineEdit_ref_cz.text())
-                    wind_cmp.main_run(this_dir, wind_path, ref_path)
+                        path_list.append(self.lineEdit_ref_cz.text())
+                    res = compare(path_list)
+                    plot_widget = PlotWidget(res)
+                    plot_widget.plot()
+                    plot_widget.show()
+
                 else:
                     selected_towers = [item.text() for item in self.listWidget_towers_list.selectedItems()]
 
@@ -1121,13 +1136,17 @@ class Ui_MainWindow(object):
                     self.statusBar.showMessage('计算完成')
             else:
                 if self.groupBox_ref_path.isChecked():
+                    path_list = []
+                    path_list.append((wind_path))
                     this_dir = os.path.dirname(__file__)
-                    ref_path = []
                     if self.lineEdit_ref_std.text():
-                        ref_path.append(self.lineEdit_ref_std.text())
+                        path_list.append(self.lineEdit_ref_std.text())
                     if self.lineEdit_ref_cz.text():
-                        ref_path.append(self.lineEdit_ref_cz.text())
-                    wind_cmp.main_run(this_dir, wind_path, ref_path)
+                        path_list.append(self.lineEdit_ref_cz.text())
+                    res = compare(path_list)
+                    plot_widget = PlotWidget(res)
+                    plot_widget.plot()
+                    plot_widget.show()
                 else:                    
                     res = main_run(wind_path, {})                    
                     self.loads = res['loads'] if self.all_selected_when_sort else {}
@@ -1156,8 +1175,11 @@ class Ui_MainWindow(object):
                                  '叶片名称': combobox_value['blade'],
                                  '塔架类型': combobox_value['hub'],
                                  combobox_value['custom_key']: combobox_value['custom_value']}
-
-                tower_list = self.tower_sql.query('塔架编号', **filter_inputs)
+                valid_filter = {k: v for k, v in filter_inputs.items() if v}
+                if valid_filter:
+                    tower_list = self.tower_sql.query('塔架编号', **filter_inputs)
+                else:
+                    tower_list = []
                 if tower_list:
                     ref_wind = self.tower_sql.get_wind_info(tower_list)
 
@@ -1204,51 +1226,59 @@ class Ui_MainWindow(object):
 
         tower_count = len(available_tower)
         self.tableWidget_tower_result.setRowCount(tower_count)  
-        self.tableWidget_tower_result.setColumnCount(11)
+        self.tableWidget_tower_result.setColumnCount(13)
 
         item_tower_id = QtWidgets.QTableWidgetItem('塔架编号')
         item_tower_id.setBackground(bg_brush_blue)
         self.tableWidget_tower_result.setHorizontalHeaderItem(0, item_tower_id)
 
-        item_tower_id = QtWidgets.QTableWidgetItem('载荷比例')
-        item_tower_id.setBackground(bg_brush_purple)
-        self.tableWidget_tower_result.setHorizontalHeaderItem(1, item_tower_id)
+        item_tower_limit = QtWidgets.QTableWidgetItem('塔架受限')
+        item_tower_limit.setBackground(bg_brush_purple)
+        self.tableWidget_tower_result.setHorizontalHeaderItem(1, item_tower_limit)
 
-        item_tower_id = QtWidgets.QTableWidgetItem('受限载荷')
-        item_tower_id.setBackground(bg_brush_blue)
-        self.tableWidget_tower_result.setHorizontalHeaderItem(2, item_tower_id)
+        item_ul_prop = QtWidgets.QTableWidgetItem('极限比例')
+        item_ul_prop.setBackground(bg_brush_blue)
+        self.tableWidget_tower_result.setHorizontalHeaderItem(2, item_ul_prop)
+
+        item_fl_prop = QtWidgets.QTableWidgetItem('疲劳比例')
+        item_fl_prop.setBackground(bg_brush_purple)
+        self.tableWidget_tower_result.setHorizontalHeaderItem(3, item_fl_prop)
+
+        item_wind_limit = QtWidgets.QTableWidgetItem('风载属性')
+        item_wind_limit.setBackground(bg_brush_blue)
+        self.tableWidget_tower_result.setHorizontalHeaderItem(4, item_wind_limit)
 
         item_tower_weight = QtWidgets.QTableWidgetItem('塔架重量(t)')
         item_tower_weight.setBackground(bg_brush_purple)
-        self.tableWidget_tower_result.setHorizontalHeaderItem(3, item_tower_weight)
+        self.tableWidget_tower_result.setHorizontalHeaderItem(5, item_tower_weight)
 
         item_air_density = QtWidgets.QTableWidgetItem('ρ')
         item_air_density.setBackground(bg_brush_purple)
-        self.tableWidget_tower_result.setHorizontalHeaderItem(4, item_air_density)
+        self.tableWidget_tower_result.setHorizontalHeaderItem(6, item_air_density)
 
         item_wind_vave = QtWidgets.QTableWidgetItem('Vave')
         item_wind_vave.setBackground(bg_brush_purple)
-        self.tableWidget_tower_result.setHorizontalHeaderItem(5, item_wind_vave)
+        self.tableWidget_tower_result.setHorizontalHeaderItem(7, item_wind_vave)
 
         item_weibull_a = QtWidgets.QTableWidgetItem('A')
         item_weibull_a.setBackground(bg_brush_purple)
-        self.tableWidget_tower_result.setHorizontalHeaderItem(6, item_weibull_a)
+        self.tableWidget_tower_result.setHorizontalHeaderItem(8, item_weibull_a)
 
         item_weibull_k = QtWidgets.QTableWidgetItem('K')
         item_weibull_k.setBackground(bg_brush_purple)
-        self.tableWidget_tower_result.setHorizontalHeaderItem(5, item_weibull_k)
+        self.tableWidget_tower_result.setHorizontalHeaderItem(9, item_weibull_k)
 
         item_wind_shear = QtWidgets.QTableWidgetItem('α')
         item_wind_shear.setBackground(bg_brush_purple)
-        self.tableWidget_tower_result.setHorizontalHeaderItem(7, item_wind_shear)
+        self.tableWidget_tower_result.setHorizontalHeaderItem(10, item_wind_shear)
 
         item_inflow = QtWidgets.QTableWidgetItem('θmean')
         item_inflow.setBackground(bg_brush_purple)        
-        self.tableWidget_tower_result.setHorizontalHeaderItem(8, item_inflow)
+        self.tableWidget_tower_result.setHorizontalHeaderItem(11, item_inflow)
 
         item_wind_v50 = QtWidgets.QTableWidgetItem('V50')
         item_wind_v50.setBackground(bg_brush_purple)        
-        self.tableWidget_tower_result.setHorizontalHeaderItem(9, item_wind_v50)
+        self.tableWidget_tower_result.setHorizontalHeaderItem(12, item_wind_v50)
 
         self.tableWidget_m1.setColumnCount(tower_count*2)
         self.tableWidget_m10.setColumnCount(tower_count*2)
@@ -1277,20 +1307,30 @@ class Ui_MainWindow(object):
             # 塔架和风参，第一个tab
             item_id = QtWidgets.QTableWidgetItem()
             item_id.setText(tower_id)
-            if tower['limit_tag'] == 'A':
+            if tower['wind_limit'] == 'A':
                 item_id.setFont(QtGui.QFont('微软雅黑', 10, QtGui.QFont.Bold))
             item_id.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
             item_id.setBackground(bg_brush_purple)
 
-            item_load_proportion = QtWidgets.QTableWidgetItem()
-            item_load_proportion.setText(str(tower['load_porp']))
-            item_load_proportion.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
-            item_load_proportion.setBackground(bg_brush_blue)
+            item_tower_limit = QtWidgets.QTableWidgetItem()
+            item_tower_limit.setText(str(tower['tower_limit']))
+            item_tower_limit.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
+            item_tower_limit.setBackground(bg_brush_blue)
 
-            item_limit_tag = QtWidgets.QTableWidgetItem()
-            item_limit_tag.setText(str(tower['limit_tag']))
-            item_limit_tag.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
-            item_limit_tag.setBackground(bg_brush_purple)
+            item_ul_prop = QtWidgets.QTableWidgetItem()
+            item_ul_prop.setText(str(tower['ul_prop']))
+            item_ul_prop.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
+            item_ul_prop.setBackground(bg_brush_purple)
+
+            item_fl_prop = QtWidgets.QTableWidgetItem()
+            item_fl_prop.setText(str(tower['fl_prop']))
+            item_fl_prop.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
+            item_fl_prop.setBackground(bg_brush_blue)
+
+            item_wind_limit = QtWidgets.QTableWidgetItem()
+            item_wind_limit.setText(str(tower['wind_limit']))
+            item_wind_limit.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
+            item_wind_limit.setBackground(bg_brush_purple)
 
             item_weight = QtWidgets.QTableWidgetItem()
             item_weight.setText(str(tower['weight']))
@@ -1333,16 +1373,18 @@ class Ui_MainWindow(object):
             item_wind_v50.setBackground(bg_brush_purple)
 
             self.tableWidget_tower_result.setItem(i, 0, item_id)
-            self.tableWidget_tower_result.setItem(i, 1, item_load_proportion)
-            self.tableWidget_tower_result.setItem(i, 2, item_limit_tag)
-            self.tableWidget_tower_result.setItem(i, 3, item_weight)
-            self.tableWidget_tower_result.setItem(i, 4, item_air_density)
-            self.tableWidget_tower_result.setItem(i, 5, item_wind_vave)
-            self.tableWidget_tower_result.setItem(i, 6, item_weibull_a)
-            self.tableWidget_tower_result.setItem(i, 7, item_weibull_k)
-            self.tableWidget_tower_result.setItem(i, 8, item_wind_shear)
-            self.tableWidget_tower_result.setItem(i, 9, item_inflow)
-            self.tableWidget_tower_result.setItem(i, 10, item_wind_v50)
+            self.tableWidget_tower_result.setItem(i, 1, item_tower_limit)
+            self.tableWidget_tower_result.setItem(i, 2, item_ul_prop)
+            self.tableWidget_tower_result.setItem(i, 3, item_fl_prop)
+            self.tableWidget_tower_result.setItem(i, 4, item_wind_limit)
+            self.tableWidget_tower_result.setItem(i, 5, item_weight)
+            self.tableWidget_tower_result.setItem(i, 6, item_air_density)
+            self.tableWidget_tower_result.setItem(i, 7, item_wind_vave)
+            self.tableWidget_tower_result.setItem(i, 8, item_weibull_a)
+            self.tableWidget_tower_result.setItem(i, 9, item_weibull_k)
+            self.tableWidget_tower_result.setItem(i, 10, item_wind_shear)
+            self.tableWidget_tower_result.setItem(i, 11, item_inflow)
+            self.tableWidget_tower_result.setItem(i, 12, item_wind_v50)
 
             # 湍流表行表头
             self.tableWidget_m1.setHorizontalHeaderItem(2*i, QtWidgets.QTableWidgetItem('WindSpeed'))
@@ -1691,4 +1733,3 @@ class MyLineEdit(QtWidgets.QLineEdit):
             event.acceptProposedAction()
         else:
             super(MyLineEdit, self).dropEvent(event)
-

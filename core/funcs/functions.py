@@ -33,13 +33,16 @@ def find_available_tower(wind_path, ref_wind, sorted_by_weight=True, loads = {})
     fl_index_tower = [lbl for lbl in sorted_loads_fl.index if lbl in ref_wind.keys()]
 
     site_max_fl = sorted_loads_fl.at[fl_index_site[0]]
-
+    tower_limit = {lbl: ref_wind[lbl]['tower_limit'] if ref_wind[lbl]['tower_limit'] else '无'
+                   for lbl in ref_wind.keys()}
     available_tower_fl = {tower_id: 
                          {'weight': ref_wind[tower_id]['tower_weight'],
-                         'limit_tag': 'F',
-                         'load_porp': round(sorted_loads_fl.at[tower_id] / np.max(sorted_loads_fl.values), 3)}
-                         for tower_id in fl_index_tower
-                         if sorted_loads_fl.at[tower_id] > 0.98 * site_max_fl}
+                          'tower_limit': tower_limit[tower_id],
+                          'wind_limit': 'F',
+                          'fl_prop': str(round(sorted_loads_fl.at[tower_id] / np.max(sorted_loads_fl.values), 3)),
+                          'ul_prop': '-'}
+                          for tower_id in fl_index_tower
+                          if sorted_loads_fl.at[tower_id] > 0.99 * site_max_fl}
 
     # 极限推荐
     ul_index_site = [lbl for lbl in sorted_loads_ul.index if lbl not in ref_wind.keys()]
@@ -48,12 +51,18 @@ def find_available_tower(wind_path, ref_wind, sorted_by_weight=True, loads = {})
     site_max_ul = sorted_loads_ul.at[ul_index_site[0]]
     
     tag = {label: 'A' if label in available_tower_fl.keys() else 'U' for label in ul_index_tower}
+    fl_prop = {label: available_tower_fl[label]['fl_prop'] if label in available_tower_fl.keys()
+                else '-' for label in ul_index_tower}
+    tower_limit = {lbl: ref_wind[lbl]['tower_limit'] if ref_wind[lbl]['tower_limit'] else '无'
+                   for lbl in ref_wind.keys()}
     available_tower_ul = {tower_id: 
                          {'weight': ref_wind[tower_id]['tower_weight'],
-                         'limit_tag': tag[tower_id],
-                         'load_porp': round(sorted_loads_ul.at[tower_id] / np.max(sorted_loads_ul.values), 3)}
-                         for tower_id in ul_index_tower
-                         if sorted_loads_ul.at[tower_id] > 0.98 * site_max_ul}
+                          'tower_limit': tower_limit[tower_id],
+                          'wind_limit': tag[tower_id],
+                          'ul_prop': str(round(sorted_loads_ul.at[tower_id] / np.max(sorted_loads_ul.values), 3)),
+                          'fl_prop': fl_prop[tower_id]}
+                          for tower_id in ul_index_tower
+                          if sorted_loads_ul.at[tower_id] > 0.99 * site_max_ul}
     # 合并
     available_tower = available_tower_ul
     available_tower.update({k: v for k, v in available_tower_fl.items() if k not in available_tower_ul.keys()})
