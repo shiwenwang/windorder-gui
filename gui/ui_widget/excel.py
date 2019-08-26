@@ -1,8 +1,6 @@
 
 from openpyxl import Workbook, load_workbook
-from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.styles import Font, colors, Alignment
-import pandas as pd
 
 
 class ExcelAPI:
@@ -13,6 +11,7 @@ class ExcelAPI:
 
     def read(self):
         self.wb = load_workbook(self.filename)
+        self.wb.create_sheet('Tower Info')
 
     def update(self, wind_info, tower_info):
         for sheet in self.wb:
@@ -32,7 +31,25 @@ class ExcelAPI:
         except UnboundLocalError:
             sites_count = len(first_col) - 2
 
-        if sheet.title == 'Site Condition':
+        if sheet.title == 'Tower Info':
+            _map = {'塔架编号': '', '塔架受限': 'tower_limit', '极限比例': 'ul_prop',
+                    '疲劳比例': 'fl_prop', '风载属性': 'wind_limit', '塔架重量(t)': 'weight', '标准规范': 'std_spec'}
+            for c, name in enumerate(_map.keys()):
+                _cell = sheet.cell(1, c + 1, name)
+                _cell.alignment = Alignment(horizontal='center', vertical='center')
+                _cell.font = Font(name='微软雅黑', size=10)
+            for r in range(len(tower_info)):
+                tower_id = list(tower_info.keys())[r]
+                tower = tower_info[tower_id]
+                for c, name in enumerate(_map.keys()):
+                    if 0 == c:
+                        value = tower_id
+                    else:
+                        value = tower[_map[name]]
+                    _cell = sheet.cell(r + 2, c + 1, value)
+                    _cell.alignment = Alignment(horizontal='center', vertical='center')
+                    _cell.font = Font(name='微软雅黑', size=10)
+        elif sheet.title == 'Site Condition':
             labels = list(tower_info.keys())
             for r, label in enumerate(labels):
 
@@ -69,7 +86,7 @@ class ExcelAPI:
                 sheet.cell(row=new_row_id, column=15).alignment = Alignment(horizontal='center', vertical='center')
                 sheet.cell(row=new_row_id, column=15).font = \
                     Font(name=sheet.cell(3, 2).font.name, size=sheet.cell(3, 2).font.size, color=colors.DARKBLUE)
-        if sheet.title in ['M=1', 'M=10', 'ETM']:
+        elif sheet.title in ['M=1', 'M=10', 'ETM']:
             map = {'M=1': 'm1', 'M=10': 'm10', 'ETM': 'etm'}
 
             for cr in sheet.merged_cells.ranges.copy():
@@ -93,6 +110,8 @@ class ExcelAPI:
                     sheet.cell(i + 3, new_col_id).alignment = Alignment(horizontal='center', vertical='center')
                     sheet.cell(i + 3, new_col_id).font = \
                         Font(name=sheet.cell(i + 3, 2).font.name, size=sheet.cell(i + 3, 2).font.size, color=colors.DARKBLUE)
+        else:
+            pass
 
 
 if __name__ == "__main__":

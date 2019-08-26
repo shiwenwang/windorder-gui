@@ -35,12 +35,15 @@ def find_available_tower(wind_path, ref_wind, sorted_by_weight=True, loads = {})
     site_max_fl = sorted_loads_fl.at[fl_index_site[0]]
     tower_limit = {lbl: ref_wind[lbl]['tower_limit'] if ref_wind[lbl]['tower_limit'] else '无'
                    for lbl in ref_wind.keys()}
+    std_spec = {lbl: ref_wind[lbl]['std_spec'] if ref_wind[lbl]['std_spec'] else '无'
+                for lbl in ref_wind.keys()}
     available_tower_fl = {tower_id: 
                          {'weight': ref_wind[tower_id]['tower_weight'],
                           'tower_limit': tower_limit[tower_id],
                           'wind_limit': 'F',
                           'fl_prop': str(round(sorted_loads_fl.at[tower_id] / np.max(sorted_loads_fl.values), 3)),
-                          'ul_prop': '-'}
+                          'ul_prop': '-',
+                          'std_spec': std_spec[tower_id]}
                           for tower_id in fl_index_tower
                           if sorted_loads_fl.at[tower_id] > 0.99 * site_max_fl}
 
@@ -55,12 +58,15 @@ def find_available_tower(wind_path, ref_wind, sorted_by_weight=True, loads = {})
                 else '-' for label in ul_index_tower}
     tower_limit = {lbl: ref_wind[lbl]['tower_limit'] if ref_wind[lbl]['tower_limit'] else '无'
                    for lbl in ref_wind.keys()}
+    std_spec = {lbl: ref_wind[lbl]['std_spec'] if ref_wind[lbl]['std_spec'] else '无'
+                for lbl in ref_wind.keys()}
     available_tower_ul = {tower_id: 
                          {'weight': ref_wind[tower_id]['tower_weight'],
                           'tower_limit': tower_limit[tower_id],
                           'wind_limit': tag[tower_id],
                           'ul_prop': str(round(sorted_loads_ul.at[tower_id] / np.max(sorted_loads_ul.values), 3)),
-                          'fl_prop': fl_prop[tower_id]}
+                          'fl_prop': fl_prop[tower_id],
+                          'std_spec': std_spec[tower_id]}
                           for tower_id in ul_index_tower
                           if sorted_loads_ul.at[tower_id] > 0.99 * site_max_ul}
     # 合并

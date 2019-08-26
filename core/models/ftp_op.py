@@ -33,15 +33,18 @@ class MyFTP:
         return int(m.groups()[0])
 
     def check_update(self, current_version):
-        pattern = re.compile(r'(\d+\.\d+)')
-        current_version_no = float(pattern.search(current_version).groups()[0])
+        pattern = re.compile(r'.*?(\d*)\.*(\d*)\.*(\d*).*?')
+        m = pattern.search(current_version)
+        current_version_no = int(''.join([m.groups()[0], m.groups()[1], m.groups()[2]]))
         connect = self.connect()
         if connect[0]:
             with FTP(self.host) as ftp:
                 ftp.login()
                 ftp.cwd('/')
                 dir_list = ftp.nlst()
-                latest_version_no = float(pattern.search(dir_list[-1]).groups()[0])
+                pattern = re.compile(r'WindOrder-v(\d*)\.*(\d*)\.*(\d*).*')
+                m = pattern.search(dir_list[-1])
+                latest_version_no = int(''.join([m.groups()[0], m.groups()[1], m.groups()[2]]))
                 new_release_name = dir_list[-1]
                 if latest_version_no > current_version_no:
                     return True, new_release_name
