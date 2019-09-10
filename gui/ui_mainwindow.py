@@ -1273,7 +1273,7 @@ class Ui_MainWindow(object):
         item_tower_weight = QtWidgets.QTableWidgetItem('塔架重量(t)')
         self.tableWidget_tower_result.setHorizontalHeaderItem(5, item_tower_weight)
 
-        item_std_spec = QtWidgets.QTableWidgetItem('标准规范')
+        item_std_spec = QtWidgets.QTableWidgetItem('塔筒屈曲标准')
         self.tableWidget_tower_result.setHorizontalHeaderItem(6, item_std_spec)
 
         # condition tab

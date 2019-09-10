@@ -12,7 +12,7 @@ THIS_DIR = os.path.dirname(__file__)
 class MySQLDataBase(object):
     def __init__(self, **kwargs):
         if kwargs:
-            self.set_config(kwargs)
+            self.set_config(kwargs)            
         else:
             config_path = os.path.abspath(os.path.join(THIS_DIR, '../../config/config.json'))
             with open(config_path, 'r', encoding='utf-8') as f:
@@ -26,6 +26,10 @@ class MySQLDataBase(object):
                        'user': kwargs['用户:'],
                        'password': kwargs['密码:'],
                        'database': kwargs['数据库名称:']}
+        if '表名称:' in kwargs.keys():
+            self.table_name = kwargs['表名称:']
+        else:
+            self.table_name = None
 
     def connect(self):
         """
@@ -36,19 +40,23 @@ class MySQLDataBase(object):
             self.db = connector.MySQLConnection(**self.config)
             cursor = self.db.cursor()
             cursor.execute(f"SHOW TABLES")
-            result = cursor.fetchall()
+            result = [r[0] for r in cursor.fetchall()]
             cursor.close()
+            print(result)
+            print(self.table_name)
             if result:
-                self.table_name = result[0][0]
+                if self.table_name is None or self.table_name not in result:
+                    self.table_name = result[0]
             else:
-                self.table_name = ''
+                # self.table_name = 
                 msg = f"{self.config['database']}数据库无数据表, 请重新配置"
                 return False, msg
+
         except (ProgrammingError, InterfaceError) as e:
             msg = f'数据库连接失败({e.msg})'
             return False, msg
         
-        return True, '数据库已连接'
+        return True, f"数据库连接至: {self.config['database']} - {self.table_name}"
         # if self.db.database:
         #     msg = '数据库已连接'
         # else:
@@ -128,7 +136,7 @@ class MySQLDataBase(object):
 
         key_words = ', '.join(['塔架编号', '空气密度', '年平均风速', '入流角', '风剪切', 'V50', '威布尔分布A值',
                                '威布尔分布K值', '塔架主体重量', '风速带', 'm为1湍流带', 'm为10湍流带', 'm为ETM湍流带',
-                               '受限情况', '标准规范'])
+                               '受限情况', '塔筒屈曲标准'])
         if len(tower_list) > 1:
             mysql_sentence = f"SELECT {key_words} from {self.table_name} where 塔架编号 in {tuple(tower_list)}"
         else:
