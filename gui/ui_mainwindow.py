@@ -1530,7 +1530,7 @@ class DBConfigDialog(QtWidgets.QDialog):
         group.setStyleSheet('background: white')
         group.setLayout(self.grid_layout)
 
-        hbox_layout = QtWidgets.QHBoxLayout(self)
+        hbox_layout = QtWidgets.QHBoxLayout()
         self.set_default_check = QtWidgets.QCheckBox('设为默认', self)
         self.set_default_check.move(15, 360)
         connect_btn = QtWidgets.QPushButton('连接', self)

@@ -42,26 +42,18 @@ class MySQLDataBase(object):
             cursor.execute(f"SHOW TABLES")
             result = [r[0] for r in cursor.fetchall()]
             cursor.close()
-            print(result)
-            print(self.table_name)
             if result:
                 if self.table_name is None or self.table_name not in result:
                     self.table_name = result[0]
             else:
-                # self.table_name = 
                 msg = f"{self.config['database']}数据库无数据表, 请重新配置"
                 return False, msg
 
         except (ProgrammingError, InterfaceError) as e:
-            msg = f'数据库连接失败({e.msg})'
+            msg = f'{e.msg}'
             return False, msg
         
-        return True, f"数据库连接至: {self.config['database']} - {self.table_name}"
-        # if self.db.database:
-        #     msg = '数据库已连接'
-        # else:
-        #     msg = '数据库地址已找到, 需指定数据库名称'
-        # return False, msg
+        return True, f"连接至：{self.table_name}({self.config['database']})"
 
     def get_column_name(self):
         cursor = self.db.cursor()
@@ -92,9 +84,6 @@ class MySQLDataBase(object):
         :param filter:
         :return:
         """
-        # name_map = {'turbine_type': '机组名称', 'blade_type': '叶片名称',
-        #             'tower_type': '塔架类型', 'category': '归档分类',
-        #             'tower_id': '塔架编号'}
         filter_phrase = []
         for k, v in filter_.items():
             filter_phrase.append(f"{k}='{str(v)}'")
