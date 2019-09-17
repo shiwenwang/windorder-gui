@@ -26,12 +26,12 @@ IMG_PATH = os.path.abspath(os.path.join(THIS_DIR, './res/img/'))
 
 class Ui_MainWindow(object):
     def __init__(self):
-        self.version = '1.2.0'
+        self.version = '1.2.1'
         self.tower_sql = MySQLDataBase()
         self.loads = {}
         self.selected_towers = []
         self.rec_last_selected_towers = []
-        self.last_available_tower = []
+        self.last_available_tower = {}
         self.wind_info = {}
         self.tower_info = {}
         self.connect_state = False
@@ -724,6 +724,9 @@ class Ui_MainWindow(object):
         self.pushButton_ref_cz.clicked.connect(self.on_pushButton_ref_cz_clicked)
         self.action_exit.triggered.connect(QtCore.QCoreApplication.instance().quit)
 
+        # self.lineEdit_farm.editingFinished.connect(self.on_lineEdit_farm_editingFinished)
+        self.lineEdit_farm.textChanged.connect(self.on_lineEdit_farm_editingFinished)
+
         # 数据库操作
         self.action_db_connect.triggered.connect(self.on_action_db_connect_triggered)
         self.action_db_config.triggered.connect(self.on_action_db_config_triggered)
@@ -846,6 +849,14 @@ class Ui_MainWindow(object):
     def on_pushButton_ref_cz_clicked(self):
         file_name = QFileDialog.getOpenFileName(None, '选择文件', '', 'Excel Files (*.xls *xlsx)')
         self.lineEdit_ref_cz.setText(file_name[0])
+
+    def on_lineEdit_farm_editingFinished(self):
+        self.loads = {}
+        self.selected_towers = []
+        self.rec_last_selected_towers = []
+        self.last_available_tower = {}
+        self.wind_info = {}
+        self.tower_info = {}
 
     def get_combobox_current_value(self):
         turbine_value = self.comboBox_turbine.currentText()
@@ -1205,6 +1216,8 @@ class Ui_MainWindow(object):
                     if selected_towers:
                         ref_wind = self.tower_sql.get_wind_info(selected_towers)
 
+                        self.wind_info = ref_wind
+
                         if self.selected_towers == selected_towers:
                             available_tower = find_available_tower(wind_path, ref_wind, loads=self.loads, sorted_by_weight=False)
                         else:
@@ -1253,7 +1266,7 @@ class Ui_MainWindow(object):
         # 塔架 tab
         tower_count = len(available_tower)
         self.tableWidget_tower_result.setRowCount(tower_count)  
-        self.tableWidget_tower_result.setColumnCount(7)
+        self.tableWidget_tower_result.setColumnCount(10)
 
         item_tower_id = QtWidgets.QTableWidgetItem('塔架编号')
         self.tableWidget_tower_result.setHorizontalHeaderItem(0, item_tower_id)
@@ -1273,8 +1286,17 @@ class Ui_MainWindow(object):
         item_tower_weight = QtWidgets.QTableWidgetItem('塔架重量(t)')
         self.tableWidget_tower_result.setHorizontalHeaderItem(5, item_tower_weight)
 
-        item_std_spec = QtWidgets.QTableWidgetItem('塔筒屈曲标准')
-        self.tableWidget_tower_result.setHorizontalHeaderItem(6, item_std_spec)
+        item_tower_ma = QtWidgets.QTableWidgetItem('塔架材料')
+        self.tableWidget_tower_result.setHorizontalHeaderItem(6, item_tower_ma)
+
+        item_tower_buckling = QtWidgets.QTableWidgetItem('塔筒屈曲标准')
+        self.tableWidget_tower_result.setHorizontalHeaderItem(7, item_tower_buckling)
+
+        item_tower_fatigue = QtWidgets.QTableWidgetItem('塔筒疲劳标准')
+        self.tableWidget_tower_result.setHorizontalHeaderItem(8, item_tower_fatigue)
+
+        item_accessories_fatigue= QtWidgets.QTableWidgetItem('附件疲劳标准')
+        self.tableWidget_tower_result.setHorizontalHeaderItem(9, item_accessories_fatigue)
 
         # condition tab
         self.tableWidget_condition.setRowCount(tower_count)
@@ -1318,9 +1340,10 @@ class Ui_MainWindow(object):
                          combobox_value['custom_key']: combobox_value['custom_value']}
         
         tower_list = self.tower_sql.query('塔架编号', **filter_inputs)
-        filtered_wind = self.tower_sql.get_wind_info(tower_list)
+        # filtered_wind = self.tower_sql.get_wind_info(tower_list)
         
-        self.wind_info = filtered_wind
+        # self.wind_info = filtered_wind
+        filtered_wind = self.wind_info
         self.tower_info = available_tower
 
         rows = []
@@ -1361,10 +1384,25 @@ class Ui_MainWindow(object):
             item_weight.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
             item_weight.setBackground(bg_brush_blue)
 
-            item_std_spec = QtWidgets.QTableWidgetItem()
-            item_std_spec.setText(str(tower['std_spec']))
-            item_std_spec.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
-            item_std_spec.setBackground(bg_brush_purple)
+            item_tower_ma = QtWidgets.QTableWidgetItem()
+            item_tower_ma.setText(str(tower['tower_ma']))
+            item_tower_ma.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
+            item_tower_ma.setBackground(bg_brush_purple)
+
+            item_tower_buckling = QtWidgets.QTableWidgetItem()
+            item_tower_buckling.setText(str(tower['tower_buckling']))
+            item_tower_buckling.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
+            item_tower_buckling.setBackground(bg_brush_blue)
+
+            item_tower_fatigue = QtWidgets.QTableWidgetItem()
+            item_tower_fatigue.setText(str(tower['tower_fatigue']))
+            item_tower_fatigue.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
+            item_tower_fatigue.setBackground(bg_brush_purple)
+
+            item_accessories_fatigue = QtWidgets.QTableWidgetItem()
+            item_accessories_fatigue.setText(str(tower['accessories_fatigue']))
+            item_accessories_fatigue.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
+            item_accessories_fatigue.setBackground(bg_brush_blue)                                    
 
             # condition tab
             item_id_copy = QtWidgets.QTableWidgetItem()
@@ -1413,7 +1451,10 @@ class Ui_MainWindow(object):
             self.tableWidget_tower_result.setItem(i, 3, item_fl_prop)
             self.tableWidget_tower_result.setItem(i, 4, item_wind_limit)
             self.tableWidget_tower_result.setItem(i, 5, item_weight)
-            self.tableWidget_tower_result.setItem(i, 6, item_std_spec)
+            self.tableWidget_tower_result.setItem(i, 6, item_tower_ma)
+            self.tableWidget_tower_result.setItem(i, 7, item_tower_buckling)
+            self.tableWidget_tower_result.setItem(i, 8, item_tower_fatigue)
+            self.tableWidget_tower_result.setItem(i, 9, item_accessories_fatigue)
 
             self.tableWidget_condition.setItem(i, 0, item_id_copy)
             self.tableWidget_condition.setItem(i, 1, item_air_density)
@@ -1574,7 +1615,8 @@ class UpdateDialog(QtWidgets.QDialog):
         self.current_version = version
         self.label_img = QtWidgets.QLabel(self)
         self.label_txt = QtWidgets.QLabel(self)
-        self.download_btn = QtWidgets.QPushButton('下载新版本', self)
+        self.single_download_btn = QtWidgets.QPushButton('下载可执行文件', self)
+        self.full_download_btn = QtWidgets.QPushButton('下载完整包', self)
         self.cancel_btn = QtWidgets.QPushButton('取消', self)
         self.ftp = MyFTP(self.host)
         self.new_version_name = ''
@@ -1608,13 +1650,17 @@ class UpdateDialog(QtWidgets.QDialog):
         group.resize(260, 100)
         group.move(20, 40)
 
-        self.download_btn.setEnabled(False)
-        self.download_btn.resize(130, 25)
-        self.download_btn.move(15, 200)
-        self.cancel_btn.resize(130, 25)
-        self.cancel_btn.move(155, 200)
+        self.single_download_btn.setEnabled(False)
+        self.single_download_btn.resize(90, 25)
+        self.single_download_btn.move(15, 200)
+        self.full_download_btn.setEnabled(False)
+        self.full_download_btn.resize(75, 25)
+        self.full_download_btn.move(120, 200)
+        self.cancel_btn.resize(75, 25)
+        self.cancel_btn.move(210, 200)
 
-        self.download_btn.clicked.connect(self.on_download_btn_clicked)
+        self.full_download_btn.clicked.connect(self.on_full_download_btn_clicked)
+        self.single_download_btn.clicked.connect(self.on_single_download_btn_clicked)
         self.cancel_btn.clicked.connect(self.canceled)
 
         self.show()
@@ -1626,7 +1672,8 @@ class UpdateDialog(QtWidgets.QDialog):
             new_version_no = self.new_version_name[11:]
             self.label_img.setStyleSheet("border-image:url('./res/img/file.png')")
             self.label_txt.setText(f'可更新至{new_version_no}版')
-            self.download_btn.setEnabled(True)
+            self.full_download_btn.setEnabled(True)
+            self.single_download_btn.setEnabled(True)
         else:
             self.label_img.setStyleSheet("border-image:url('./res/img/warning.png')")
             self.label_txt.setText(check_result[1])
@@ -1634,10 +1681,17 @@ class UpdateDialog(QtWidgets.QDialog):
     def canceled(self):
         self.close()
 
-    def on_download_btn_clicked(self):
+    def on_full_download_btn_clicked(self):
         save_file = QFileDialog.getSaveFileName(None, '保存文件', self.new_version_name, 'Zip File (*zip)')
         local_file_path = save_file[0] + '.zip'
-        remote_file_path = os.path.join('/', self.new_version_name, self.new_version_name + '.zip')
+        remote_file_path = os.path.join('/', self.new_version_name, f'{self.new_version_name}.zip')
+        self.ftp.download(local_file_path, remote_file_path)
+        self.close()
+
+    def on_single_download_btn_clicked(self):
+        save_file = QFileDialog.getSaveFileName(None, '保存文件', 'windorder', 'EXE File (*exe)')
+        local_file_path = save_file[0] + '.exe'
+        remote_file_path = os.path.join('/', self.new_version_name, 'windorder.exe')
         self.ftp.download(local_file_path, remote_file_path)
         self.close()
 

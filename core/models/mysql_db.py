@@ -125,7 +125,7 @@ class MySQLDataBase(object):
 
         key_words = ', '.join(['塔架编号', '空气密度', '年平均风速', '入流角', '风剪切', 'V50', '威布尔分布A值',
                                '威布尔分布K值', '塔架主体重量', '风速带', 'm为1湍流带', 'm为10湍流带', 'm为ETM湍流带',
-                               '受限情况', '塔筒屈曲标准'])
+                               '受限情况', '塔架材料', '塔筒屈曲标准', '塔筒疲劳标准', '附件疲劳标准'])
         if len(tower_list) > 1:
             mysql_sentence = f"SELECT {key_words} from {self.table_name} where 塔架编号 in {tuple(tower_list)}"
         else:
@@ -140,7 +140,8 @@ class MySQLDataBase(object):
 
         for item in query_result:
             tower_id, air_density, vave, inflow_angle, wind_shear, v50, weibull_a, weibull_k, tower_weight, \
-            wind_speed, m1, m10, etm, tower_limit, std_spec = item
+                wind_speed, m1, m10, etm, tower_limit, \
+                tower_ma, tower_buckling, tower_fatigue, accessories_fatigue = item
             air_density = float(air_density) if self.within(air_density, 0, 2) else 1.225
             vave = float(vave) if vave else 6.0
             inflow_angle = float(inflow_angle) if self.within(inflow_angle, -20, 20) else 0
@@ -150,7 +151,10 @@ class MySQLDataBase(object):
             weibull_k = float(weibull_k) if self.within(weibull_k, 0, 10) else 2
             weibull_a = float(weibull_a) if self.within(weibull_a, 0, 20) else vave / exp(log(gamma(1 + 1 / weibull_k)))
             tower_limit = tower_limit if tower_limit else ''
-            std_spec = std_spec if std_spec else ''
+            tower_ma = tower_ma if tower_ma else ''
+            tower_buckling = tower_buckling if tower_buckling else ''
+            tower_fatigue = tower_fatigue if tower_fatigue else ''
+            accessories_fatigue = accessories_fatigue if accessories_fatigue else ''
 
             # 过滤风速带和湍流带中的空数据和单个值
             wind_speed = [float(s) for s in wind_speed.split()] \
@@ -158,6 +162,7 @@ class MySQLDataBase(object):
             m1 = [float(s) for s in m1.split()] if m1 and isinstance(m1, str) else [0] * len(wind_speed)
             m10 = [float(s) for s in m10.split()] if m10 and isinstance(m10, str) else [0] * len(wind_speed)
             etm = [float(s) for s in etm.split()] if etm and isinstance(etm, str) else [0] * len(wind_speed)
+
 
             # 数据对齐
             wind_speed, m1 = self.alignment(wind_speed, m1)
@@ -179,7 +184,8 @@ class MySQLDataBase(object):
                            'm10': ti_m10, 'etm': ti_etm, 'tower_weight': float(tower_weight),
                            'label': [f'{tower_id[6:]}-{tower_weight}t-{tower_limit_map[tower_limit]}'],
                            'tower_limit': tower_limit_map[tower_limit],
-                           'std_spec': std_spec}
+                           'tower_ma': tower_ma, 'tower_buckling': tower_buckling, 
+                           'tower_fatigue': tower_fatigue, 'accessories_fatigue': accessories_fatigue}
 
             wind_info[tower_id] = wind_params
 
