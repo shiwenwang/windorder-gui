@@ -17,7 +17,7 @@ class MySQLDataBase(object):
             config_path = os.path.abspath(os.path.join(THIS_DIR, '../../config/config.json'))
             with open(config_path, 'r', encoding='utf-8') as f:
                 config_ = json.load(f)
-            self.set_config(config_)
+            self.set_config(config_['db'])
         self.db = connector.MySQLConnection()
 
     def set_config(self, kwargs):
@@ -125,7 +125,7 @@ class MySQLDataBase(object):
 
         key_words = ', '.join(['塔架编号', '空气密度', '年平均风速', '入流角', '风剪切', 'V50', '威布尔分布A值',
                                '威布尔分布K值', '塔架主体重量', '风速带', 'm为1湍流带', 'm为10湍流带', 'm为ETM湍流带',
-                               '受限情况', '塔架材料', '塔筒屈曲标准', '塔筒疲劳标准', '附件疲劳标准'])
+                               '受限情况', '塔架材料', '塔筒屈曲标准', '塔筒疲劳标准', '附件疲劳标准', '塔架段数', '基础类型'])
         if len(tower_list) > 1:
             mysql_sentence = f"SELECT {key_words} from {self.table_name} where 塔架编号 in {tuple(tower_list)}"
         else:
@@ -141,7 +141,7 @@ class MySQLDataBase(object):
         for item in query_result:
             tower_id, air_density, vave, inflow_angle, wind_shear, v50, weibull_a, weibull_k, tower_weight, \
                 wind_speed, m1, m10, etm, tower_limit, \
-                tower_ma, tower_buckling, tower_fatigue, accessories_fatigue = item
+                tower_ma, tower_buckling, tower_fatigue, accessories_fatigue, tower_sec, base_type = item
             air_density = float(air_density) if self.within(air_density, 0, 2) else 1.225
             vave = float(vave) if vave else 6.0
             inflow_angle = float(inflow_angle) if self.within(inflow_angle, -20, 20) else 0
@@ -185,7 +185,8 @@ class MySQLDataBase(object):
                            'label': [f'{tower_id[6:]}-{tower_weight}t-{tower_limit_map[tower_limit]}'],
                            'tower_limit': tower_limit_map[tower_limit],
                            'tower_ma': tower_ma, 'tower_buckling': tower_buckling, 
-                           'tower_fatigue': tower_fatigue, 'accessories_fatigue': accessories_fatigue}
+                           'tower_fatigue': tower_fatigue, 'accessories_fatigue': accessories_fatigue,
+                           'tower_sec': tower_sec, 'base_type': base_type}
 
             wind_info[tower_id] = wind_params
 

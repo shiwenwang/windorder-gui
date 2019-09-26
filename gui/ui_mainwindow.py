@@ -13,6 +13,7 @@ from functools import partial
 import os
 import sys
 import time
+from multiprocessing import Process
 
 THIS_DIR = os.path.dirname(__file__)
 sys.path.append(os.path.abspath(os.path.join(THIS_DIR, '..')))
@@ -652,11 +653,12 @@ class Ui_MainWindow(object):
 # import image_rc
     def ui_init(self):
         try:
-            with open('./config/config.json', 'r') as f:
+            with open('./config/config.json', 'r', encoding='utf-8') as f:
                 config = json.load(f)
+                db_config = config['db']
         except (FileNotFoundError, JSONDecodeError) as e:
-            config = {}
-        state, msg = self.mysql_connect(**config)
+            db_config = {}
+        state, msg = self.mysql_connect(**db_config)
 
         self.groupBox_ref_path.setChecked(False)
         self.groupBox_turbine_lib.setChecked(True)
@@ -670,7 +672,10 @@ class Ui_MainWindow(object):
             self.turbine_list = list_upper([''] + sorted(self.tower_sql.query('机组名称')))
             self.blade_list = list_upper([''] + sorted(self.tower_sql.query('叶片名称')))
             self.hubheight_list = list_upper([''] + sorted(self.tower_sql.query('塔架类型')))
-            self.custom_key_list = ['自定义项', '塔架段数', '塔架直径', '基础类型', '箱变位置', '归档分类']
+            with open('./config/config.json', 'r', encoding='utf-8') as f:
+                config = json.load(f)
+                others = config['others']
+            self.custom_key_list = others
             self.custom_value_dict = {k: list_upper([''] + sorted(self.tower_sql.query(k)))
                                       for k in self.custom_key_list}
             self.comboBox_custom_key.clear()
@@ -785,10 +790,11 @@ class Ui_MainWindow(object):
         about_dialog.exec()
 
     def update(self):
-        with open('./config/ftp.json', 'r', encoding='utf-8') as f:
-            ftp_ = json.load(f)
-        self.statusBar.showMessage(f"ftp_host: {ftp_['host']}", 2)
-        update_dialog = UpdateDialog(ftp_['host'], self.version)
+        with open('./config/config.json', 'r', encoding='utf-8') as f:
+            config = json.load(f)
+            ftp_config = config['ftp']
+        self.statusBar.showMessage(f"ftp_host: {ftp_config['host']}", 2)
+        update_dialog = UpdateDialog(ftp_config['host'], self.version)
         update_dialog.exec()
 
     def mysql_connect(self, **kwargs):
@@ -808,6 +814,7 @@ class Ui_MainWindow(object):
         try:
             with open('./config/config.json', 'r', encoding='utf-8') as f:
                 config = json.load(f)
+                db_config = config['db']
         except:
             self.statusBar.showMessage('数据库配置信息读取失败！')
 
@@ -1266,7 +1273,7 @@ class Ui_MainWindow(object):
         # 塔架 tab
         tower_count = len(available_tower)
         self.tableWidget_tower_result.setRowCount(tower_count)  
-        self.tableWidget_tower_result.setColumnCount(10)
+        self.tableWidget_tower_result.setColumnCount(12)
 
         item_tower_id = QtWidgets.QTableWidgetItem('塔架编号')
         self.tableWidget_tower_result.setHorizontalHeaderItem(0, item_tower_id)
@@ -1297,6 +1304,12 @@ class Ui_MainWindow(object):
 
         item_accessories_fatigue= QtWidgets.QTableWidgetItem('附件疲劳标准')
         self.tableWidget_tower_result.setHorizontalHeaderItem(9, item_accessories_fatigue)
+
+        item_tower_sec = QtWidgets.QTableWidgetItem('塔架段数')
+        self.tableWidget_tower_result.setHorizontalHeaderItem(10, item_tower_sec)
+
+        item_base_type = QtWidgets.QTableWidgetItem('基础类型')
+        self.tableWidget_tower_result.setHorizontalHeaderItem(11, item_base_type)
 
         # condition tab
         self.tableWidget_condition.setRowCount(tower_count)
@@ -1402,7 +1415,17 @@ class Ui_MainWindow(object):
             item_accessories_fatigue = QtWidgets.QTableWidgetItem()
             item_accessories_fatigue.setText(str(tower['accessories_fatigue']))
             item_accessories_fatigue.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
-            item_accessories_fatigue.setBackground(bg_brush_blue)                                    
+            item_accessories_fatigue.setBackground(bg_brush_blue)  
+
+            item_tower_sec = QtWidgets.QTableWidgetItem()
+            item_tower_sec.setText(str(tower['tower_sec']))
+            item_tower_sec.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
+            item_tower_sec.setBackground(bg_brush_purple)
+
+            item_base_type = QtWidgets.QTableWidgetItem()
+            item_base_type.setText(str(tower['base_type']))
+            item_base_type.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
+            item_base_type.setBackground(bg_brush_blue)                                  
 
             # condition tab
             item_id_copy = QtWidgets.QTableWidgetItem()
@@ -1455,6 +1478,8 @@ class Ui_MainWindow(object):
             self.tableWidget_tower_result.setItem(i, 7, item_tower_buckling)
             self.tableWidget_tower_result.setItem(i, 8, item_tower_fatigue)
             self.tableWidget_tower_result.setItem(i, 9, item_accessories_fatigue)
+            self.tableWidget_tower_result.setItem(i, 10, item_tower_sec)
+            self.tableWidget_tower_result.setItem(i, 11, item_base_type)
 
             self.tableWidget_condition.setItem(i, 0, item_id_copy)
             self.tableWidget_condition.setItem(i, 1, item_air_density)
@@ -1547,10 +1572,11 @@ class DBConfigDialog(QtWidgets.QDialog):
         try:
             with open('./config/config.json', 'r', encoding='utf-8') as f:
                 config = json.load(f)
+                db_config = config['db']
         except (FileNotFoundError, JSONDecodeError) as e:
-            config = {}
-        if config:
-            auto_filling = config
+            db_config = {}
+        if db_config:
+            auto_filling = db_config
             auto_filling[''] = ''
         else:
             auto_filling = {'数据库名称:': '', '表名称:': '', '主机:': '', '':'',
@@ -1595,14 +1621,17 @@ class DBConfigDialog(QtWidgets.QDialog):
         self.show()
 
     def on_connect_btn_clicked(self):
-        config = {'数据库名称:': self.grid_layout.itemAtPosition(0, 1).widget().text(),
-                  '表名称:': self.grid_layout.itemAtPosition(1, 1).widget().text(),
-                  '主机:': self.grid_layout.itemAtPosition(3, 1).widget().text(),
-                  '端口:': self.grid_layout.itemAtPosition(4, 1).widget().text(),
-                  '用户:': self.grid_layout.itemAtPosition(5, 1).widget().text(),
-                  '密码:': self.grid_layout.itemAtPosition(6, 1).widget().text()}
-        self.func_mysql_connect(**config)
+        db_config = {'数据库名称:': self.grid_layout.itemAtPosition(0, 1).widget().text(),
+                     '表名称:': self.grid_layout.itemAtPosition(1, 1).widget().text(),
+                     '主机:': self.grid_layout.itemAtPosition(3, 1).widget().text(),
+                     '端口:': self.grid_layout.itemAtPosition(4, 1).widget().text(),
+                     '用户:': self.grid_layout.itemAtPosition(5, 1).widget().text(),
+                     '密码:': self.grid_layout.itemAtPosition(6, 1).widget().text()}
+        self.func_mysql_connect(**db_config)
         if self.set_default_check.isChecked():
+            with open('./config/config.json', 'r', encoding='utf-8') as f:
+                config = json.load(f)
+            config['db'] = db_config
             with open('./config/config.json', 'w', encoding='UTF-8') as f:
                 json.dump(config, f)
         self.close()
@@ -1622,6 +1651,9 @@ class UpdateDialog(QtWidgets.QDialog):
         self.new_version_name = ''
 
         self.ui_show()
+
+        # checking_process = Process(target=self.update_checking)
+        # checking_process.start()
         self.update_checking()
 
     def ui_show(self):
