@@ -1632,8 +1632,8 @@ class DBConfigDialog(QtWidgets.QDialog):
             with open('./config/config.json', 'r', encoding='utf-8') as f:
                 config = json.load(f)
             config['db'] = db_config
-            with open('./config/config.json', 'w', encoding='UTF-8') as f:
-                json.dump(config, f)
+            with open('./config/config.json', 'w', encoding='utf-8') as f:
+                json.dump(config, f, ensure_ascii=False, indent=4)
         self.close()
 
 
