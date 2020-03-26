@@ -1,5 +1,5 @@
 ### 利用PyInstaller打包
-#### 在根目录执行（建议在虚拟环境中, .exe更小)
+#### 1. 在根目录执行（建议在虚拟环境中, .exe更小)
 - 启动时没有控制台：
 
 ```
@@ -53,12 +53,13 @@ coll = COLLECT(exe,
 
 ```
 
-#### 修改`windorder-v<version>.spec` 文件
+#### 2. 修改`windorder-v<version>.spec` 文件
 ```python
 pathex=['E:\\WorkSpace\\6_Programming\\wind-order-gui'],
 hiddenimports=['mysql','mysql.connector.locales.eng.client_error'],
 ```
 
-#### 最终执行
+#### 3. 最终执行
 `pyinstaller windorder-v<version>.spec`
+
 可执行程序在`dist/windorder-v<version>`文件夹中。
