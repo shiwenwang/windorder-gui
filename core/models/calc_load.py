@@ -33,8 +33,8 @@ class CalcLoad(Base):
 
         self.this_dir = os.path.dirname(__file__)
 
-        regress_ul_dir = os.path.abspath(os.path.join(self.this_dir, '../../files/Regress_UL'))
-        regress_fl_dir = os.path.abspath(os.path.join(self.this_dir, '../../files/Regress_FL'))
+        regress_ul_dir = os.path.abspath(os.path.join(self.this_dir, '../../res/files/Regress_UL'))
+        regress_fl_dir = os.path.abspath(os.path.join(self.this_dir, '../../res/files/Regress_FL'))
         u_pattern = re.compile(r'Regress_UL_.+\.csv')
         f_pattern = re.compile(r'Regress_RF_Case\d+\.csv')
 

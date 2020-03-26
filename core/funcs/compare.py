@@ -18,7 +18,7 @@ def compare(path_list):
         merged_loads['fl'] = merged_loads['fl'].append(loads['fl'])
 
     global THIS_DIR
-    color_path = os.path.abspath(os.path.join(THIS_DIR, '../../files/color/color.json'))
+    color_path = os.path.abspath(os.path.join(THIS_DIR, '../../res/files/color/color.json'))
 
     with open(color_path, 'r') as f:
         colors = json.load(f)

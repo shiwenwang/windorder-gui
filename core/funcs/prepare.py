@@ -35,7 +35,7 @@ def excel2csv(exl_dir, csv_dir, pattern):
             csv_path = os.path.join(csv_dir, file.replace('.xls', '.csv'))
             df.to_csv(csv_path)
 
-@timer            
+@timer
 def get_regressor(folder, pattern, load_name):
     """
     Regressor read and regularization
@@ -90,12 +90,12 @@ def __repl_zh(list_zh):
 
 if __name__ == "__main__":
     this_dir = os.path.dirname(__file__)
-    
-    ul_dir = os.path.abspath(os.path.join(this_dir, '../../files/Regress_UL_01-39'))
-    fl_dir = os.path.abspath(os.path.join(this_dir, '../../files/Regress_FL_001-123'))
 
-    ul_dir_csv = os.path.abspath(os.path.join(this_dir, '../../files/Regress_UL'))
-    fl_dir_csv = os.path.abspath(os.path.join(this_dir, '../../files/Regress_FL'))
+    ul_dir = os.path.abspath(os.path.join(this_dir, '../../res/files/Regress_UL_01-39'))
+    fl_dir = os.path.abspath(os.path.join(this_dir, '../../res/files/Regress_FL_001-123'))
+
+    ul_dir_csv = os.path.abspath(os.path.join(this_dir, '../../res/files/Regress_UL'))
+    fl_dir_csv = os.path.abspath(os.path.join(this_dir, '../../res/files/Regress_FL'))
 
     u_pattern = re.compile(r'Regress_UL_.')
     f_pattern = re.compile(r'Regress_RF_Case\d+\.')

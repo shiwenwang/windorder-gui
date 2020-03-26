@@ -49,12 +49,12 @@ def find_available_tower(wind_path, ref_wind, sorted_by_weight=True, loads = {})
     tower_fatigue = {lbl: ref_wind[lbl]['tower_fatigue'] if ref_wind[lbl]['tower_fatigue'] else '-'
                 for lbl in ref_wind.keys()}
     accessories_fatigue = {lbl: ref_wind[lbl]['accessories_fatigue'] if ref_wind[lbl]['accessories_fatigue'] else '-'
-                for lbl in ref_wind.keys()}    
+                for lbl in ref_wind.keys()}
     tower_sec = {lbl: ref_wind[lbl]['tower_sec'] if ref_wind[lbl]['tower_sec'] else '-'
-                for lbl in ref_wind.keys()}  
+                for lbl in ref_wind.keys()}
     base_type = {lbl: ref_wind[lbl]['base_type'] if ref_wind[lbl]['base_type'] else '-'
-                for lbl in ref_wind.keys()}                                          
-    available_tower_fl = {tower_id: 
+                for lbl in ref_wind.keys()}
+    available_tower_fl = {tower_id:
                          {'weight': ref_wind[tower_id]['tower_weight'],
                           'tower_limit': tower_limit[tower_id],
                           'wind_limit': 'F',
@@ -75,7 +75,7 @@ def find_available_tower(wind_path, ref_wind, sorted_by_weight=True, loads = {})
     ul_index_tower = [lbl for lbl in sorted_loads_ul.index if lbl in ref_wind.keys()]
 
     site_max_ul = sorted_loads_ul.at[ul_index_site[0]]
-    
+
     tag = {label: 'A' if label in available_tower_fl.keys() else 'U' for label in ul_index_tower}
     fl_prop = {label: available_tower_fl[label]['fl_prop'] if label in available_tower_fl.keys()
                 else '-' for label in ul_index_tower}
@@ -88,12 +88,12 @@ def find_available_tower(wind_path, ref_wind, sorted_by_weight=True, loads = {})
     tower_fatigue = {lbl: ref_wind[lbl]['tower_fatigue'] if ref_wind[lbl]['tower_fatigue'] else '-'
                 for lbl in ref_wind.keys()}
     accessories_fatigue = {lbl: ref_wind[lbl]['accessories_fatigue'] if ref_wind[lbl]['accessories_fatigue'] else '-'
-                for lbl in ref_wind.keys()} 
+                for lbl in ref_wind.keys()}
     tower_sec = {lbl: ref_wind[lbl]['tower_sec'] if ref_wind[lbl]['tower_sec'] else '-'
-                for lbl in ref_wind.keys()}  
+                for lbl in ref_wind.keys()}
     base_type = {lbl: ref_wind[lbl]['base_type'] if ref_wind[lbl]['base_type'] else '-'
-                for lbl in ref_wind.keys()}   
-    available_tower_ul = {tower_id: 
+                for lbl in ref_wind.keys()}
+    available_tower_ul = {tower_id:
                          {'weight': ref_wind[tower_id]['tower_weight'],
                           'tower_limit': tower_limit[tower_id],
                           'wind_limit': tag[tower_id],
@@ -113,7 +113,7 @@ def find_available_tower(wind_path, ref_wind, sorted_by_weight=True, loads = {})
     available_tower.update({k: v for k, v in available_tower_fl.items() if k not in available_tower_ul.keys()})
     if sorted_by_weight:
         available_tower = sorted(available_tower.items(), key=lambda x:x[1]['weight'])
-    
+
     return available_tower
 
 def main_run(wind_path, ref_wind):
@@ -132,7 +132,7 @@ def main_run(wind_path, ref_wind):
     loads = calc_loads(wind_path, ref_wind)
 
     global THIS_DIR
-    color_path = os.path.abspath(os.path.join(THIS_DIR, '../../files/color/color.json'))
+    color_path = os.path.abspath(os.path.join(THIS_DIR, '../../res/files/color/color.json'))
 
     with open(color_path, 'r') as f:
         colors = json.load(f)
@@ -145,10 +145,10 @@ def main_run(wind_path, ref_wind):
 def calc_loads(wind_path, ref_wind):
     """
     Calculate loads(U,F) according to wind resource parameter and regressor
-    
+
     db_data = {} 时，重新在路径下读取json
     db_data有数据时，这里不需要读json
-    
+
     """
     # from time import time
     # start = time()
@@ -161,7 +161,7 @@ def calc_loads(wind_path, ref_wind):
 
     wind_cluster = {'farm': wind_outputs}
     # tower_loads_mysql.json 用于存放计算过的塔架的载荷值
-    tower_loads_json_file = os.path.abspath(os.path.join(THIS_DIR, '../../files/Loads/tower_loads_mysql.json'))
+    tower_loads_json_file = os.path.abspath(os.path.join(THIS_DIR, '../../res/files/Loads/tower_loads_mysql.json'))
     if not os.path.isfile(tower_loads_json_file):
         with open(tower_loads_json_file, 'w') as f:
             json.dump({'ul': {}, 'fl': {}}, f)
@@ -177,7 +177,7 @@ def calc_loads(wind_path, ref_wind):
 
     # from time import time
     # start = time()
-    ''' turbulence intensity interpolation '''    
+    ''' turbulence intensity interpolation '''
     ti_interp = TiInterp(**wind_cluster)
     ti_interp.run()
     # end = time()
@@ -290,7 +290,7 @@ def bar_config(load_sorted, ref_Wind, wind_name, color_list):
 
     for lbl in sorted_labels:
         if lbl in ref_labels:
-            color_show.append(color_list[ref_labels.index(lbl)]) 
+            color_show.append(color_list[ref_labels.index(lbl)])
         else:
             color_show.append('b')
 

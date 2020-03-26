@@ -22,7 +22,7 @@ from core import TowerDataBase, main_run, find_available_tower, compare, MySQLDa
 from gui.ui_widget import *
 import json
 
-IMG_PATH = os.path.abspath(os.path.join(THIS_DIR, './res/img/'))
+IMG_PATH = os.path.abspath(os.path.join(THIS_DIR, '../res/img/'))
 
 
 class Ui_MainWindow(object):

@@ -9,7 +9,7 @@ sys.path.append(os.path.abspath(os.path.join(THIS_DIR, '..')))
 from core import find_available_tower, main_run
 from core.models import MySQLDataBase
 
-wind_path = os.path.abspath(os.path.join(THIS_DIR, '../files/wind/huaneng_140-2.5-140m_341.5t.xlsx'))
+wind_path = os.path.abspath(os.path.join(THIS_DIR, '../res/files/wind/huaneng_140-2.5-140m_341.5t.xlsx'))
 config = {'数据库名称:': 'test', '表名称:': '定版塔架数据库_copy1', '主机:': 'localhost',
               '端口:': '3306', '用户:': 'root', '密码:': ''}
 
