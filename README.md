@@ -55,7 +55,7 @@ coll = COLLECT(exe,
 
 #### 2. 修改`windorder-v<version>.spec` 文件
 ```python
-pathex=['E:\\WorkSpace\\6_Programming\\wind-order-gui'],
+pathex=['E:\\WorkSpace\\6_Programming\\wind-order-gui\gui'],
 hiddenimports=['mysql','mysql.connector.locales.eng.client_error'],
 ```
 
