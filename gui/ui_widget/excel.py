@@ -19,7 +19,7 @@ class ExcelAPI:
 
     def write(self, save_filename):
         self.wb.save(save_filename)
-                    
+
     def _update_sheet(self, sheet, wind_info, tower_info):
         first_col = self.wb['Site Condition']['A']
         for cell in first_col:
@@ -33,7 +33,7 @@ class ExcelAPI:
 
         if sheet.title == 'Tower Info':
             _map = {'塔架编号': '', '塔架受限': 'tower_limit', '极限比例': 'ul_prop',
-                    '疲劳比例': 'fl_prop', '风载属性': 'wind_limit', '塔架重量(t)': 'weight', '标准规范': 'std_spec'}
+                    '疲劳比例': 'fl_prop', '风载属性': 'wind_limit', '塔架重量(t)': 'weight'}
             for c, name in enumerate(_map.keys()):
                 _cell = sheet.cell(1, c + 1, name)
                 _cell.alignment = Alignment(horizontal='center', vertical='center')
@@ -42,6 +42,8 @@ class ExcelAPI:
                 tower_id = list(tower_info.keys())[r]
                 tower = tower_info[tower_id]
                 for c, name in enumerate(_map.keys()):
+                    if _map[name] not in tower.keys():
+                        continue
                     if 0 == c:
                         value = tower_id
                     else:
@@ -93,10 +95,10 @@ class ExcelAPI:
                 sheet.unmerge_cells(cr.coord)
 
             sheet.delete_cols(sites_count + 3, 4)
-            
+
             labels = list(tower_info.keys())
             for c, label in enumerate(labels):
-                new_col_id = sites_count + 3 + c                                
+                new_col_id = sites_count + 3 + c
                 sheet.cell(row=1, column=new_col_id, value=label)
                 sheet.cell(row=1, column=new_col_id).font = \
                     Font(name=sheet.cell(1, 2).font.name, size=sheet.cell(1, 2).font.size, color=colors.DARKBLUE)
@@ -120,4 +122,3 @@ if __name__ == "__main__":
     filepath1 = r'E:\WorkSpace\6_Programming\wind_order\wind_order-gui\files\wind\shunfeng_140-2.5-140m_341.5t_save.xlsx'
     excel = Excel(filepath,filepath1)
     excel.read()
-    

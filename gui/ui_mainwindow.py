@@ -679,11 +679,11 @@ class Ui_MainWindow(object):
             self.custom_value_dict = {k: list_upper([''] + sorted(self.tower_sql.query(k)))
                                       for k in self.custom_key_list}
             self.comboBox_custom_key.clear()
-            self.comboBox_custom_value.clear()                            
+            self.comboBox_custom_value.clear()
             self.comboBox_custom_key.addItems(self.custom_key_list)
             custom_key = self.comboBox_custom_key.currentText()
             self.comboBox_custom_value.addItems(self.custom_value_dict[custom_key])
-        else:            
+        else:
             self.statusBar.showMessage(msg, -1)
             self.turbine_list = []
             self.blade_list = []
@@ -709,7 +709,7 @@ class Ui_MainWindow(object):
         for f in json_files:
             full_path = os.path.join(json_folder, f)
             self.db.update(full_path, mode='a')
-        
+
         basic_info = self.db.get_basic_info(self.db.database)
         self.turbine_list = list_upper(['',] + sorted(list(basic_info['turbine_type'])))
         self.comboBox_turbine.addItems(self.turbine_list)
@@ -802,7 +802,7 @@ class Ui_MainWindow(object):
             self.tower_sql.set_config(kwargs)
             state, msg = self.tower_sql.connect()
         else:
-            state, msg = False, "数据库无法连接，请重新配置！"     
+            state, msg = False, "数据库无法连接，请重新配置！"
 
         self.connect_state = state
         self.comboBox_init(state, msg)
@@ -1070,7 +1070,7 @@ class Ui_MainWindow(object):
             filtered = self.tower_sql.query('机组名称', **filter_inputs)
             turbine_list = list_upper([''] + sorted(filtered))
             combobox_update(self.comboBox_turbine, turbine_list, self.checkBox_turbine, self.turbine_list)
-    
+
     def on_checkBox_blade_clicked(self):
         if self.checkBox_blade.isChecked():
             combobox_update(self.comboBox_blade, [], self.checkBox_blade, self.blade_list)
@@ -1144,7 +1144,7 @@ class Ui_MainWindow(object):
             self.statusBar.showMessage("数据库未连接")
 
     def on_pushButton_sort_clicked(self):
-        self.statusBar.clearMessage()              
+        self.statusBar.clearMessage()
         self.statusBar.showMessage('计算中...')
         wind_path = self.lineEdit_farm.text()
         if wind_path:
@@ -1164,20 +1164,27 @@ class Ui_MainWindow(object):
 
                 else:
                     selected_towers = [item.text() for item in self.listWidget_towers_list.selectedItems()]
+                    if not selected_towers:
+                        self.statusBar.showMessage('未选塔架!')
+                        return None
 
                     # 用于确定选的塔架是否变更, 便于推荐时直接采用载荷结果
                     self.selected_towers = selected_towers
 
-                    ref_wind = self.tower_sql.get_wind_info(selected_towers)
+                    ref_wind, bad_data = self.tower_sql.get_wind_info(selected_towers)
 
-                    res = main_run(wind_path, ref_wind)                    
+                    res = main_run(wind_path, ref_wind)
                     self.loads = res['loads'] if self.selected_towers else {}
 
                     plot_widget = PlotWidget(res)
                     plot_widget.plot()
                     plot_widget.show()
 
-                    self.statusBar.showMessage('计算完成')
+                    status_bar_msg = "计算完成"
+                    if bad_data:
+                        status_bar_msg += ', 数据不规范塔架：[' + ' '.join(bad_data) + '].'
+
+                    self.statusBar.showMessage(status_bar_msg)
             else:
                 if self.groupBox_ref_path.isChecked():
                     path_list = []
@@ -1191,8 +1198,8 @@ class Ui_MainWindow(object):
                     plot_widget = PlotWidget(res)
                     plot_widget.plot()
                     plot_widget.show()
-                else:                    
-                    res = main_run(wind_path, {})                    
+                else:
+                    res = main_run(wind_path, {})
                     self.loads = res['loads'] if self.selected_towers else {}
 
                     plot_widget = PlotWidget(res)
@@ -1215,31 +1222,38 @@ class Ui_MainWindow(object):
         if wind_path:
             if self.tower_sql.db.is_connected() and self.tower_sql.table_name:
                 selected_towers = [item.text() for item in self.listWidget_towers_list.selectedItems()]
+                if not selected_towers:
+                    self.statusBar.showMessage('未选塔架!')
+                    return None
                 if self.rec_last_selected_towers == selected_towers:
                     self.clear_result()
                     self.show_result(self.last_available_tower)  # 结果显示
                     self.statusBar.showMessage(f'计算完成，找到{len(self.last_available_tower)}款塔架')
                 else:
-                    if selected_towers:
-                        ref_wind = self.tower_sql.get_wind_info(selected_towers)
+                    ref_wind, bad_data = self.tower_sql.get_wind_info(selected_towers)
 
-                        self.wind_info = ref_wind
+                    self.wind_info = ref_wind
 
-                        if self.selected_towers == selected_towers:
-                            available_tower = find_available_tower(wind_path, ref_wind, loads=self.loads, sorted_by_weight=False)
-                        else:
-                            available_tower = find_available_tower(wind_path, ref_wind, loads={}, sorted_by_weight=False)
-
-                        self.rec_last_selected_towers = selected_towers
-                        self.last_available_tower = available_tower
-                        if available_tower:
-                            self.clear_result()
-                            self.show_result(available_tower) # 结果显示
-                            self.statusBar.showMessage(f'计算完成，找到{len(available_tower)}款塔架')
-                        else:
-                            self.statusBar.showMessage('未找到合适塔架')
+                    if self.selected_towers == selected_towers:
+                        available_tower = find_available_tower(wind_path, ref_wind, loads=self.loads, sorted_by_weight=False)
                     else:
-                        self.statusBar.showMessage('未选塔架')
+                        available_tower = find_available_tower(wind_path, ref_wind, loads={}, sorted_by_weight=False)
+
+                    self.rec_last_selected_towers = selected_towers
+                    self.last_available_tower = available_tower
+                    if available_tower:
+                        self.clear_result()
+                        self.show_result(available_tower) # 结果显示
+                        status_bar_msg = f'计算完成，找到{len(available_tower)}款塔架'
+                        if bad_data:
+                            status_bar_msg += ', 数据不规范塔架：[' + ' '.join(bad_data) + '].'
+                        self.statusBar.showMessage(status_bar_msg)
+                    else:
+                        status_bar_msg = '未找到合适塔架'
+                        if bad_data:
+                            status_bar_msg += ', 数据不规范塔架：[' + ' '.join(bad_data) + '].'
+                        self.statusBar.showMessage(status_bar_msg)
+
             else:
                 msg = QMessageBox()
                 msg.setWindowTitle("警告")
@@ -1252,7 +1266,7 @@ class Ui_MainWindow(object):
             msg.setWindowTitle("警告")
             msg.setIcon(QMessageBox.Warning)
             msg.setText("缺少场址风参文件！")
-            msg.exec()     
+            msg.exec()
 
     def clear_result(self):
         self.tableWidget_tower_result.setRowCount(0)
@@ -1272,7 +1286,7 @@ class Ui_MainWindow(object):
 
         # 塔架 tab
         tower_count = len(available_tower)
-        self.tableWidget_tower_result.setRowCount(tower_count)  
+        self.tableWidget_tower_result.setRowCount(tower_count)
         self.tableWidget_tower_result.setColumnCount(12)
 
         item_tower_id = QtWidgets.QTableWidgetItem('塔架编号')
@@ -1341,8 +1355,8 @@ class Ui_MainWindow(object):
 
         self.tableWidget_m1.setColumnCount(tower_count*2)
         self.tableWidget_m10.setColumnCount(tower_count*2)
-        self.tableWidget_etm.setColumnCount(tower_count*2)            
-        
+        self.tableWidget_etm.setColumnCount(tower_count*2)
+
         # filtered = self.db.filter(**filter_inputs)
         # filtered_wind = self.db.get_wind_info(filtered)
 
@@ -1351,10 +1365,10 @@ class Ui_MainWindow(object):
                          '叶片名称': combobox_value['blade'],
                          '塔架类型': combobox_value['hub'],
                          combobox_value['custom_key']: combobox_value['custom_value']}
-        
+
         tower_list = self.tower_sql.query('塔架编号', **filter_inputs)
         # filtered_wind = self.tower_sql.get_wind_info(tower_list)
-        
+
         # self.wind_info = filtered_wind
         filtered_wind = self.wind_info
         self.tower_info = available_tower
@@ -1415,7 +1429,7 @@ class Ui_MainWindow(object):
             item_accessories_fatigue = QtWidgets.QTableWidgetItem()
             item_accessories_fatigue.setText(str(tower['accessories_fatigue']))
             item_accessories_fatigue.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
-            item_accessories_fatigue.setBackground(bg_brush_blue)  
+            item_accessories_fatigue.setBackground(bg_brush_blue)
 
             item_tower_sec = QtWidgets.QTableWidgetItem()
             item_tower_sec.setText(str(tower['tower_sec']))
@@ -1425,7 +1439,7 @@ class Ui_MainWindow(object):
             item_base_type = QtWidgets.QTableWidgetItem()
             item_base_type.setText(str(tower['base_type']))
             item_base_type.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
-            item_base_type.setBackground(bg_brush_blue)                                  
+            item_base_type.setBackground(bg_brush_blue)
 
             # condition tab
             item_id_copy = QtWidgets.QTableWidgetItem()
@@ -1517,20 +1531,20 @@ class Ui_MainWindow(object):
             item_wind_speed.setBackground(bg_brush_purple)
             item_wind_speed.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
             item_wind_speed.setFlags(QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled)
-            table.setItem(j, 2*i, item_wind_speed)            
+            table.setItem(j, 2*i, item_wind_speed)
             item_ti = QtWidgets.QTableWidgetItem(str(ti[j]))
             item_ti.setBackground(bg_brush_blue)
             item_ti.setTextAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
             item_ti.setFlags(QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled)
             table.setItem(j, 2*i+1, item_ti)
-    
+
     def on_pushButton_export_clicked(self):
         if not self.wind_info or not self.tower_info:
             msg = QMessageBox()
             msg.setWindowTitle("警告")
             msg.setIcon(QMessageBox.Warning)
             msg.setText("没有结果，请先进行塔架推荐。")
-            msg.exec()  
+            msg.exec()
         else:
             wind_path = self.lineEdit_farm.text()
             if os.path.splitext(wind_path)[-1] == '.xls':
@@ -1538,14 +1552,14 @@ class Ui_MainWindow(object):
                 msg.setWindowTitle("警告")
                 msg.setIcon(QMessageBox.Warning)
                 msg.setText("该功能暂不支持.xls格式的风参，\n可手动转换成.xlsx格式再执行。")
-                msg.exec()  
+                msg.exec()
             else:
                 wind_folder = os.path.split(wind_path)[0]
                 excel = ExcelAPI(wind_path)
                 excel.update(self.wind_info, self.tower_info)
 
                 savefile = QFileDialog.getSaveFileName(None, '保存文件', wind_folder, 'Excel Files (*xlsx)')
-                filename = savefile[0] + '.xlsx'        
+                filename = savefile[0] + '.xlsx'
                 excel.write(filename)
 
 

@@ -12,9 +12,24 @@ from . import Base
 from . import CalcRatedWindSpeed
 from functools import partial
 
+import logging
+import os
+
+
+THIS_DIR = os.path.dirname(__file__)
+
+LOG_FORMAT = "%(asctime)s %(name)s %(levelname)s %(message)s "#配置输出日志格式
+DATE_FORMAT = '%Y-%m-%d  %H:%M:%S'
+log_filepath = config_path = os.path.abspath(os.path.join(THIS_DIR, '../../log/windorder.log'))
+logging.basicConfig(level = logging.INFO,
+                    format = LOG_FORMAT,
+                    datefmt = DATE_FORMAT ,
+                    filename = log_filepath
+                    )
+
 
 class TiInterp(Base):
-        
+
     def run(self):
         """
 
@@ -33,13 +48,13 @@ class TiInterp(Base):
                 turbine_sites = wind['site_label']  # label: sites
             else:
                 turbine_sites = [k]  # label: tower_id
-                
+
             rated_wind_speed = self.calc_rated_wind_speed(wind_condition)  # dict
 
             min_windspeed = ti_m1['Wind Speed'].values[0]
             wind_cut_in = 2.5 if min_windspeed < 3 else 3
             wind_cut_out = int(ti_etm.at[len(ti_etm.index) - 1, 'Wind Speed'])  # at 比iloc速度更快
-            
+
             f_wind_end = partial(self.calc_wind_end, wind_condition, wind_cut_out)
             sequence = np.append(np.arange(3, 20, 2), 20)  # [3, 5, 7, 9, 11, 13, 15, 17, 19, 20]
             etm_index = ['ETM' + str(d) for d in sequence]
@@ -68,7 +83,7 @@ class TiInterp(Base):
     def interpolation(self, turbine_sites, rated_wind_speed, wind_cut_in, wind_cut_out,
                         ti_m1, ti_m10, ti_etm, ul_index, fl_index, f_wind_end):
         ti = {}
-        sequence = np.append(np.arange(3, 20, 2), 20) 
+        sequence = np.append(np.arange(3, 20, 2), 20)
         for turbine_id in turbine_sites:
             # m1、m10、etm 补短
             if wind_cut_out < 20:
@@ -86,9 +101,9 @@ class TiInterp(Base):
             m10_ext_seq = np.array([wind_cut_in, rated_wind_speed[turbine_id], wind_cut_out])
 
             ti_ul = np.append(ti_ul, self.ti_seq(ti_m1, turbine_id, m1_ext_seq, 'ext'))
-            ti_fl = np.append(ti_fl, self.ti_seq(ti_m10, turbine_id, m10_ext_seq, 'ext'))        
+            ti_fl = np.append(ti_fl, self.ti_seq(ti_m10, turbine_id, m10_ext_seq, 'ext'))
             self.v_end[turbine_id] = f_wind_end(turbine_id)
-            ti_fl = np.append(ti_fl, self.calc_ti_end(ti_fl, self.v_end[turbine_id]))          
+            ti_fl = np.append(ti_fl, self.calc_ti_end(ti_fl, self.v_end[turbine_id]))
 
             ti_ul_ser = pd.Series(ti_ul, index=ul_index)
             ti_fl_ser = pd.Series(ti_fl, index=fl_index)
@@ -105,7 +120,7 @@ class TiInterp(Base):
         ti_tail = ti[-1:]
         ti_tail.at[len(ti) - 1, 'Wind Speed'] = 20
         ti_tail.index = [len(ti)]
-        ti = pd.concat([ti, ti_tail])        
+        ti = pd.concat([ti, ti_tail])
 
     def ti_seq(self, ti, turbine_id, sequence, scope):
         try:
@@ -114,6 +129,8 @@ class TiInterp(Base):
             # 有非数字存在
             interpolator = interp1d(self.fix_data(ti['Wind Speed'].values),
                                     self.fix_data(ti[turbine_id].values), kind='linear')
+
+            logging.warning(f'[{turbine_id}]: ' + str(e))
             print(f"[INFO]: {turbine_id}, 湍流格式有误！{e}")
 
         # max_wind_speed = np.max(ti['Wind Speed'].values)
@@ -140,7 +157,7 @@ class TiInterp(Base):
         v_end = (0.7 * wind_condition.loc[turbine_id]['v50'] if 0.7 * wind_condition.loc[turbine_id]['v50'] >
                  wind_cut_out + 1 else wind_cut_out + 2)
         return v_end
-    
+
     @staticmethod
     def calc_ti_end(ti_fl, wind_end):
         # I15_m10*(0.75+5.6/wind_end)/(0.75+5.6/15)

@@ -1,13 +1,9 @@
 .vscode/
 .git/
 .idea/
+__pycache__/
+*.pyc
 build/
 dist/
-*.pyc
-files/
-local_test/
-WindOrder.ico
-WindOrder.spec
-Pipfile
-Pipfile.lock
-备忘.txt
+env/
+wind/

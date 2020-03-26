@@ -6,13 +6,24 @@ import numpy as np
 from math import gamma, exp, log
 import os
 import json
+import logging
+
 
 THIS_DIR = os.path.dirname(__file__)
+
+LOG_FORMAT = "%(asctime)s %(name)s %(levelname)s %(message)s "#配置输出日志格式
+DATE_FORMAT = '%Y-%m-%d  %H:%M:%S'
+log_filepath = config_path = os.path.abspath(os.path.join(THIS_DIR, '../../log/windorder.log'))
+logging.basicConfig(level = logging.INFO,
+                    format = LOG_FORMAT,
+                    datefmt = DATE_FORMAT ,
+                    filename = log_filepath
+                    )
 
 class MySQLDataBase(object):
     def __init__(self, **kwargs):
         if kwargs:
-            self.set_config(kwargs)            
+            self.set_config(kwargs)
         else:
             config_path = os.path.abspath(os.path.join(THIS_DIR, '../../config/config.json'))
             with open(config_path, 'r', encoding='utf-8') as f:
@@ -52,7 +63,7 @@ class MySQLDataBase(object):
         except (ProgrammingError, InterfaceError) as e:
             msg = f'{e.msg}'
             return False, msg
-        
+
         return True, f"连接至：{self.table_name}({self.config['database']})"
 
     def get_column_name(self):
@@ -90,7 +101,7 @@ class MySQLDataBase(object):
         filter_sentence = ' and '.join(filter_phrase)
 
         if filter_:
-            mysql_select_sentence = f"SELECT {', '.join(item)} from {self.table_name} where {filter_sentence}"
+            mysql_select_sentence = f"SELECT {', '.join(item)} from {self.table_name} where {filter_sentence} and 空气密度 is not null"
         else:
             mysql_select_sentence = f"SELECT {', '.join(item)} from {self.table_name}"
 
@@ -131,17 +142,20 @@ class MySQLDataBase(object):
         else:
             mysql_sentence = f"SELECT {key_words} from {self.table_name} where 塔架编号 = '{tower_list[0]}'"
         query_result = self.__query(mysql_sentence)
-        wind_params = self.__get_wind_info(query_result)
+        wind_params, bad_data = self.__get_wind_info(query_result)
 
-        return wind_params
+        return wind_params, bad_data
 
     def __get_wind_info(self, query_result):
         wind_info = {}
+        bad_data = []
 
         for item in query_result:
             tower_id, air_density, vave, inflow_angle, wind_shear, v50, weibull_a, weibull_k, tower_weight, \
                 wind_speed, m1, m10, etm, tower_limit, \
                 tower_ma, tower_buckling, tower_fatigue, accessories_fatigue, tower_sec, base_type = item
+            if not air_density:
+                continue
             air_density = float(air_density) if self.within(air_density, 0, 2) else 1.225
             vave = float(vave) if vave else 6.0
             inflow_angle = float(inflow_angle) if self.within(inflow_angle, -20, 20) else 0
@@ -156,13 +170,16 @@ class MySQLDataBase(object):
             tower_fatigue = tower_fatigue if tower_fatigue else ''
             accessories_fatigue = accessories_fatigue if accessories_fatigue else ''
 
-            # 过滤风速带和湍流带中的空数据和单个值
-            wind_speed = [float(s) for s in wind_speed.split()] \
+            try:
+                # 过滤风速带和湍流带中的空数据和单个值
+                wind_speed = [float(s) for s in wind_speed.split()] \
                 if wind_speed and isinstance(wind_speed, str) else list(np.arange(2.5, 21.5, 1))
-            m1 = [float(s) for s in m1.split()] if m1 and isinstance(m1, str) else [0] * len(wind_speed)
-            m10 = [float(s) for s in m10.split()] if m10 and isinstance(m10, str) else [0] * len(wind_speed)
-            etm = [float(s) for s in etm.split()] if etm and isinstance(etm, str) else [0] * len(wind_speed)
-
+                m1 = [float(s) for s in m1.split()] if m1 and isinstance(m1, str) else [0] * len(wind_speed)
+                m10 = [float(s) for s in m10.split()] if m10 and isinstance(m10, str) else [0] * len(wind_speed)
+                etm = [float(s) for s in etm.split()] if etm and isinstance(etm, str) else [0] * len(wind_speed)
+            except Exception as e:
+                bad_data.append(tower_id)
+                logging.warning(f'[{tower_id}]: ' + str(e))
 
             # 数据对齐
             wind_speed, m1 = self.alignment(wind_speed, m1)
@@ -184,13 +201,13 @@ class MySQLDataBase(object):
                            'm10': ti_m10, 'etm': ti_etm, 'tower_weight': float(tower_weight),
                            'label': [f'{tower_id[6:]}-{tower_weight}t-{tower_limit_map[tower_limit]}'],
                            'tower_limit': tower_limit_map[tower_limit],
-                           'tower_ma': tower_ma, 'tower_buckling': tower_buckling, 
+                           'tower_ma': tower_ma, 'tower_buckling': tower_buckling,
                            'tower_fatigue': tower_fatigue, 'accessories_fatigue': accessories_fatigue,
                            'tower_sec': tower_sec, 'base_type': base_type}
 
             wind_info[tower_id] = wind_params
 
-        return wind_info
+        return wind_info, bad_data
 
     @staticmethod
     def within(value, lower, upper):
@@ -198,7 +215,7 @@ class MySQLDataBase(object):
 
     @staticmethod
     def alignment(wind_speed, ti):
-        
+
         # 将湍流为0的值用前一个数代替
         ti = [d if d else ti[i-1] for i, d in enumerate(ti)]
         offset = abs(len(wind_speed) - len(ti))
