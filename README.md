@@ -1,4 +1,5 @@
-# Usage
+# WindOrder GUI
+## Usage
 ### 利用PyInstaller打包
 #### 1. 在根目录执行（建议在虚拟环境中, .exe更小)
 - 启动时没有控制台：
